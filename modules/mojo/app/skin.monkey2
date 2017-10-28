@@ -3,8 +3,6 @@ Namespace mojo.app
 
 Using std.resource
 
-#rem monkeydoc @hidden
-#end
 Class Skin Extends Resource
 
 	Property Image:Image()
@@ -49,9 +47,16 @@ Class Skin Extends Resource
 		Return New Skin( pixmap )
 	End
 	
+	Protected
+	
+	Method OnDiscard() Override
+		_image=Null
+	End
+	
 	Private
 	
 	Field _image:Image
+	
 	Field _bounds:Recti
 	
 	Field _x0:Int,_x1:Int,_x2:Int,_x3:Int
@@ -107,12 +112,10 @@ Class Skin Extends Resource
 		_y1=stretch.min.y
 		_y2=stretch.max.y
 		_y3=pixmap.Height
-		
-		_image=New Image( pixmap )
 
 		_bounds=New Recti( -padding.min.x,-padding.min.y,_x3-padding.max.x,_y3-padding.max.y )
 		
-		AddDependancy( _image )
+		_image=New Image( pixmap )
 	End
 End
 

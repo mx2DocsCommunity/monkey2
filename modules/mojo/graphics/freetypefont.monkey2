@@ -47,15 +47,6 @@ Class FreeTypeFont Extends Font
 	
 	Protected
 	
-	Method OnDiscard() Override
-	
-		FT_Done_Face( _face )
-	
-		_data.Discard()
-		
-		Super.OnDiscard()
-	End
-	
 	Method OnLoadGlyphPage( page:Int,gpage:GlyphPage ) Override
 	
 		Const MaxTexWidth:=1024
@@ -144,11 +135,21 @@ Class FreeTypeFont Extends Font
 		gpage.image=New Image( pixmap,TextureFlags.Filter|TextureFlags.Mipmap,_shader )
 		gpage.glyphs=glyphs
 		
-		pixmap.Discard()
-		
 '		Print "Loading glyph page "+page+", image size="+gpage.image.Rect.Size
 	End
-
+	
+	Method OnDiscard() Override
+	
+		FT_Done_Face( _face )
+		
+		_data.Discard()
+		
+		_data=Null
+		_face=Null
+		_shader=Null
+		
+	End
+	
 	Private
 	
 	Field _data:DataBuffer
@@ -158,6 +159,7 @@ Class FreeTypeFont Extends Font
 	Field _ascent:Int
 	
 	Method New( data:DataBuffer,face:FT_Face,fheight:Float,shader:Shader )
+		
 		_data=data
 		_face=face
 		_shader=shader

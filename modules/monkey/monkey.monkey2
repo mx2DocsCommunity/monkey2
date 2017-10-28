@@ -5,13 +5,7 @@ Namespace monkey
 #import "<liblog.a>"
 #endif
 
-#Import "types.monkey2"
-#Import "math.monkey2"
-#Import "debug.monkey2"
-#Import "gc.monkey2"
-
 #Import "native/bbtypes.cpp"
-#Import "native/bbinit.cpp"
 #Import "native/bbassert.cpp"
 #Import "native/bbmemory.cpp"
 #Import "native/bbstring.cpp"
@@ -24,3 +18,13 @@ Namespace monkey
 #Import "native/bbvariant.cpp"
 #Import "native/bbtypeinfo.cpp"
 #Import "native/bbdeclinfo.cpp"
+
+#If __TARGET__="macos" Or __TARGET__="ios"
+#Import "native/bbstring.mm"
+#Endif
+
+#Import "types.monkey2"
+#Import "math.monkey2"
+#Import "debug.monkey2"
+#Import "gc.monkey2"
+

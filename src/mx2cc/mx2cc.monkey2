@@ -1,17 +1,26 @@
 
 Namespace mx2cc
 
-Using mx2.docs
-
 #Import "<std>"
 
 #Import "mx2"
 
-#Import "docs/docsmaker"
-#Import "docs/jsonbuffer"
-#Import "docs/minimarkdown"
-#Import "docs/markdownbuffer"
-#Import "docs/manpage"
+'Use newdocs
+#Import "newdocs/docsnode"
+#Import "newdocs/docsbuffer"
+#Import "newdocs/docsmaker"
+#Import "newdocs/markdown"
+
+Using mx2.newdocs
+
+'Use olddocs
+'#Import "docs/docsmaker"
+'#Import "docs/jsonbuffer"
+'#Import "docs/minimarkdown"
+'#Import "docs/markdownbuffer"
+'#Import "docs/manpage"
+'
+'Using mx2.docs
 
 #Import "geninfo/geninfo"
 
@@ -19,13 +28,17 @@ Using libc..
 Using std..
 Using mx2..
 
+Const MX2CC_VERSION_EXT:=""
+
 Global StartDir:String
 
+'Const TestArgs:="mx2cc makemods"
+
+'Const TestArgs:="mx2cc makedocs mojo"
+'Const TestArgs:="pyro-framework pyro-gui pyro-scenegraph pyro-tiled"
 'Const TestArgs:="mx2cc makedocs"
 
-Const TestArgs:="mx2cc makemods -clean -config=release"
- 
-'Const TestArgs:="mx2cc makeapp -target=desktop -apptype=console -run src/mx2cc/test.monkey2"
+Const TestArgs:="mx2cc makeapp src/mx2cc/test.monkey2"
 
 'To build with old mx2cc...
 '
@@ -41,8 +54,11 @@ Const TestArgs:="mx2cc makemods -clean -config=release"
 
 Function Main()
 
+	'Set aside 64M for GC!
+	GCSetTrigger( 64*1024*1024 )
+
 	Print ""
-	Print "Mx2cc version "+MX2CC_VERSION
+	Print "Mx2cc version "+MX2CC_VERSION+MX2CC_VERSION_EXT
 	
 	StartDir=CurrentDir()
 	
@@ -106,7 +122,7 @@ Function Main()
 	Endif
 	
 	Local ok:=False
-	
+
 	Try
 	
 		Local cmd:=args[1]
@@ -149,7 +165,11 @@ Function MakeApp:Bool( args:String[] )
 	
 	Local cd:=CurrentDir()
 	ChangeDir( StartDir )
+	
+	'DebugStop()
+	
 	Local srcPath:=RealPath( args[0].Replace( "\","/" ) )
+	
 	ChangeDir( cd )
 	
 	opts.mainSource=srcPath
@@ -247,6 +267,8 @@ Function MakeMods:Bool( args:String[] )
 	Return errs=0
 End
 
+'olddocs...
+#rem
 Function MakeDocs:Bool( args:String[] )
 
 	Local opts:=New BuildOpts
@@ -257,13 +279,14 @@ Function MakeDocs:Bool( args:String[] )
 	opts.fast=True
 	opts.verbose=0
 	opts.passes=2
+	opts.makedocs=true
 	
 	args=ParseOpts( opts,args )
 	
 	opts.clean=False
 	
 	If Not args args=EnumModules()
-	
+
 	Local docsMaker:=New DocsMaker
 	
 	Local errs:=0
@@ -286,8 +309,9 @@ Function MakeDocs:Bool( args:String[] )
 		
 		Builder.Semant()
 		If Builder.errors.Length errs+=1;Continue
-		
+
 		docsMaker.MakeDocs( Builder.modules.Top )
+
 	Next
 	
 	Local api_indices:=New StringStack
@@ -311,16 +335,85 @@ Function MakeDocs:Bool( args:String[] )
 	page=page.Replace( "${DOCS_TREE}",tree )
 	SaveString( page,"docs/docs.html" )
 	
-	#rem
-	Local page:=LoadString( "docs/modules_template.html" )
-	page=page.Replace( "${API_INDEX}",api_indices.Join( "," ) )
-	SaveString( page,"docs/modules.html" )
+	Return True
+End
+#end
+
+
+'newdocs...
+Function MakeDocs:Bool( args:String[] )
+
+	Local opts:=New BuildOpts
+	opts.productType="module"
+	opts.target="desktop"
+	opts.config="debug"
+	opts.clean=False
+	opts.fast=True
+	opts.verbose=0
+	opts.passes=2
+	opts.makedocs=true
 	
-	page=LoadString( "docs/manuals_template.html" )
-	page=page.Replace( "${MAN_INDEX}",man_indices.Join( "," ) )
-	SaveString( page,"docs/manuals.html" )
-	#end
+	args=ParseOpts( opts,args )
+	
+	opts.clean=False
+	
+	If Not args args=EnumModules()
+
+	Local docsDir:=RealPath( "docs" )+"/"
+	
+	Local pageTemplate:=LoadString( "docs/new_docs_page_template.html" )
+	
+	Local docsMaker:=New DocsMaker( docsDir,pageTemplate )
+
+	Local errs:=0
+	
+	For Local modid:=Eachin args
 		
+		Local path:="modules/"+modid+"/"+modid+".monkey2"
+		If GetFileType( path )<>FILETYPE_FILE Fail( "Module file '"+path+"' not found" )
+	
+		Print ""
+		Print "***** Doccing module '"+modid+"' *****"
+		Print ""
+		
+		opts.mainSource=RealPath( path )
+		
+		New BuilderInstance( opts )
+
+		Builder.Parse()
+		If Builder.errors.Length errs+=1;Continue
+		
+		Builder.Semant()
+		If Builder.errors.Length errs+=1;Continue
+
+		Local module:=Builder.modules.Top
+		
+		docsMaker.CreateModuleDocs( module )
+		
+	Next
+	
+	Local buf:=New StringStack
+	Local modsbuf:=New StringStack
+	
+	For Local modid:=Eachin EnumModules()
+
+		Local index:=LoadString( "docs/modules/"+modid+"/manual/index.js" )
+		If index and Not index.Trim() Print "module OOPS modid="+modid
+		If index buf.Push( index )
+		
+		index=LoadString( "docs/modules/"+modid+"/module/index.js" )
+		If index and Not index.Trim() Print "manual OOPS modid="+modid
+		If index modsbuf.Push( index )
+	Next
+	
+	buf.Add( "{text:'Modules reference',children:[~n"+modsbuf.Join( "," )+"]}~n" )
+	
+	Local tree:=buf.Join( "," )
+	
+	Local page:=LoadString( "docs/new_docs_template.html" )
+	page=page.Replace( "${DOCS_TREE}",tree )
+	SaveString( page,"docs/newdocs.html" )
+	
 	Return True
 End
 
@@ -370,18 +463,13 @@ Function ParseOpts:String[]( opts:BuildOpts,args:String[] )
 		Case "-product"
 			opts.product=path
 		Case "-apptype"
-			Select val
-			Case "gui","console"
-				opts.appType=val
-			Default
-				Fail( "Invalid value for 'apptype' option: '"+val+"' - must be 'gui' or 'console'" )
-			End
+			opts.appType=val
 		Case "-target"
 			Select val
-			Case "desktop","windows","macos","linux","raspbian","emscripten","wasm","android","ios"
+			Case "desktop","windows","macos","linux","raspbian","emscripten","android","ios"
 				opts.target=val
 			Default
-				Fail( "Invalid value for 'target' option: '"+val+"' - must be 'desktop', 'raspbian', 'emscripten', 'wasm', 'android' or 'ios'" )
+				Fail( "Invalid value for 'target' option: '"+val+"' - must be 'desktop', 'raspbian', 'emscripten', 'android' or 'ios'" )
 			End
 		Case "-config"
 			Select val
@@ -403,6 +491,20 @@ Function ParseOpts:String[]( opts:BuildOpts,args:String[] )
 	
 	Next
 	
+	Select opts.appType
+	Case "console","gui"
+		Select opts.target
+		Case "desktop","windows","macos","linux","raspbian"
+		Default
+			Fail( "apptype '"+opts.appType+"' may ponly be used with desktop targets" )
+		End
+	case "wasm","asmjs","wasm+asmjs"
+		If opts.target<>"emscripten" Fail( "apptype '"+opts.appType+"' is only valid for emscripten target" )
+	case ""
+	Default
+		Fail( "Unrecognized apptype '"+opts.appType+"'" )
+	End
+		
 	Return Null
 End
 

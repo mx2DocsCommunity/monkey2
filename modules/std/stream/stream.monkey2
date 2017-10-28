@@ -7,7 +7,7 @@ Using std.collections
 
 #rem monkeydoc Stream class.
 #end
-Class Stream
+Class Stream Extends std.resource.Resource
 
 	#rem monkeydoc True if no more data can be read from the stream.
 	#end
@@ -30,8 +30,8 @@ Class Stream
 	#rem monkeydoc Closes the stream.
 	#end
 	Method Close:Void()
+		
 		OnClose()
-		_tmpbuf.Discard()
 	End
 
 	#rem monkeydoc Seeks to a position in the stream.
@@ -91,13 +91,16 @@ Class Stream
 
 	#rem monkeydoc The byte order of the stream.
 	
-	The default byte order is ByteOrder.BigEndian.
+	The default byte order is ByteOrder.LittleEndian.
 	
 	#end
 	Property ByteOrder:ByteOrder()
-		Return _tmpbuf.ByteOrder
+		
+		Return _swap ? ByteOrder.BigEndian Else ByteOrder.LittleEndian
+		
 	Setter( byteOrder:ByteOrder )
-		_tmpbuf.ByteOrder=byteOrder
+		
+		_swap=(byteOrder=ByteOrder.BigEndian)
 	End
 	
 	#rem monkeydoc Reads as many bytes as possible from a stream into memory.
@@ -118,7 +121,7 @@ Class Stream
 		Local pos:=0
 		
 		While pos<count
-			Local n:=Read( Cast<Byte Ptr>( buf )+pos,count-pos )
+			Local n:=Read( Cast<UByte Ptr>( buf )+pos,count-pos )
 			If n<=0 Exit
 			pos+=n
 		Wend
@@ -135,7 +138,7 @@ Class Stream
 	
 		Local data:=New DataBuffer( count )
 		Local n:=ReadAll( data,0,count )
-		If n>=count Return data
+		If n=count Return data
 		Local tmp:=data.Slice( 0,n )
 		data.Discard()
 		Return tmp
@@ -165,7 +168,7 @@ Class Stream
 		buf.Discard()
 		Return data
 	End
-	
+
 	#rem monkeydoc Reads data from the stream and throws it away.
 
 	@param count The number of bytes to skip.
@@ -195,9 +198,10 @@ Class Stream
 	
 	#end
 	Method ReadByte:Byte()
-		If Read( _tmpbuf.Data,1 )=1 Return _tmpbuf.PeekByte( 0 )
 		
-		Return 0
+		Local n:Byte
+		Read( Varptr n,1 )
+		Return n
 	End
 	
 	#rem monkeydoc Reads an unsigned byte from the stream.
@@ -206,9 +210,10 @@ Class Stream
 	
 	#end
 	Method ReadUByte:UByte()
-		If Read( _tmpbuf.Data,1 )=1 Return _tmpbuf.PeekUByte( 0 )
 		
-		Return 0
+		Local n:UByte
+		Read( Varptr n,1 )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 16 bit short from the stream.
@@ -217,9 +222,11 @@ Class Stream
 	
 	#end
 	Method ReadShort:Short()
-		If ReadAll( _tmpbuf.Data,2 )=2 Return _tmpbuf.PeekShort( 0 )
-		
-		Return 0
+
+		Local n:Short
+		If Read( Varptr n,2 )<>2 n=0
+		If _swap Swap2( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 16 bit unsigned short from the stream.
@@ -228,9 +235,11 @@ Class Stream
 	
 	#end
 	Method ReadUShort:UShort()
-		If ReadAll( _tmpbuf.Data,2 )=2 Return _tmpbuf.PeekUShort( 0 )
-		
-		Return 0
+
+		Local n:UShort
+		If Read( Varptr n,2 )<>2 n=0
+		If _swap Swap2( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 32 bit int from the stream.
@@ -239,9 +248,11 @@ Class Stream
 	
 	#end
 	Method ReadInt:Int()
-		If ReadAll( _tmpbuf.Data,4 )=4 Return _tmpbuf.PeekInt( 0 )
 		
-		Return 0
+		Local n:Int
+		If Read( Varptr n,4 )<>4 n=0
+		If _swap Swap4( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 32 bit unsigned int from the stream.
@@ -250,9 +261,11 @@ Class Stream
 	
 	#end
 	Method ReadUInt:UInt()
-		If ReadAll( _tmpbuf.Data,4 )=4 Return _tmpbuf.PeekUInt( 0 )
 		
-		Return 0
+		Local n:UInt
+		If Read( Varptr n,4 )<>4 n=0
+		If _swap Swap4( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 32 bit long from the stream.
@@ -261,9 +274,11 @@ Class Stream
 	
 	#end
 	Method ReadLong:Long()
-		If ReadAll( _tmpbuf.Data,8 )=8 Return _tmpbuf.PeekLong( 0 )
-
-		Return 0
+		
+		Local n:Long
+		If Read( Varptr n,8 )<>8 n=0
+		If _swap Swap8( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 32 bit unsigned long from the stream.
@@ -272,9 +287,11 @@ Class Stream
 	
 	#end
 	Method ReadULong:ULong()
-		If ReadAll( _tmpbuf.Data,8 )=8 Return _tmpbuf.PeekULong( 0 )
-
-		Return 0
+		
+		Local n:ULong
+		If Read( Varptr n,8 )<>8 n=0
+		If _swap Swap8( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 32 bit float from the stream.
@@ -283,9 +300,11 @@ Class Stream
 	
 	#end
 	Method ReadFloat:Float()
-		If ReadAll( _tmpbuf.Data,4 )=4 Return _tmpbuf.PeekFloat( 0 )
 
-		Return 0
+		Local n:Float
+		If Read( Varptr n,4 )<>4 n=0
+		If _swap Swap4( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads a 64 bit double from the stream.
@@ -294,9 +313,11 @@ Class Stream
 	
 	#end
 	Method ReadDouble:Double()
-		If ReadAll( _tmpbuf.Data,8 )=8 Return _tmpbuf.PeekDouble( 0 )
-
-		Return 0
+		
+		Local n:Double
+		If Read( Varptr n,8 )<>8 n=0
+		If _swap Swap8( Varptr n )
+		Return n
 	End
 	
 	#rem monkeydoc Reads the entire stream into a string.
@@ -316,7 +337,7 @@ Class Stream
 	
 	#end
 	Method ReadSizedString:String()
-		Local n:=ReadInt()
+		Local n:=ReadInt() 
 		Local data:=ReadAll( n )
 		Local str:=data.PeekString( 0 )
 		data.Discard()
@@ -364,8 +385,8 @@ Class Stream
 	
 	#end
 	Method WriteByte( data:Byte )
-		_tmpbuf.PokeByte( 0,data )
-		Write( _tmpbuf.Data,1 )
+		
+		Write( Varptr data,1 )
 	End
 	
 	#rem monkeydoc Write an unsigned byte to the stream.
@@ -374,8 +395,8 @@ Class Stream
 
 	#end
 	Method WriteUByte( data:UByte )
-		_tmpbuf.PokeUByte( 0,data )
-		Write( _tmpbuf.Data,1 )
+		
+		Write( Varptr data,1 )
 	End
 	
 	#rem monkeydoc Writes a 16 bit short to the stream.
@@ -384,8 +405,9 @@ Class Stream
 
 	#end
 	Method WriteShort( data:Short )
-		_tmpbuf.PokeShort( 0,data )
-		Write( _tmpbuf.Data,2 )
+
+		If _swap Swap2( Varptr data )
+		Write( Varptr data,2 )
 	End
 	
 	#rem monkeydoc Writes a 16 bit unsigned short to the stream.
@@ -394,8 +416,9 @@ Class Stream
 
 	#end
 	Method WriteUShort( data:UShort )
-		_tmpbuf.PokeUShort( 0,data )
-		Write( _tmpbuf.Data,2 )
+
+		If _swap Swap2( Varptr data )
+		Write( Varptr data,2 )
 	End
 	
 	#rem monkeydoc Writes a 32 bit int to the stream.
@@ -404,8 +427,9 @@ Class Stream
 
 	#end
 	Method WriteInt( data:Int )
-		_tmpbuf.PokeInt( 0,data )
-		Write( _tmpbuf.Data,4 )
+		
+		If _swap Swap4( Varptr data )
+		Write( Varptr data,4 )
 	End
 	
 	#rem monkeydoc Writes a 32 bit unsigned int to the stream.
@@ -414,8 +438,9 @@ Class Stream
 
 	#end
 	Method WriteUInt( data:UInt )
-		_tmpbuf.PokeUInt( 0,data )
-		Write( _tmpbuf.Data,4 )
+
+		If _swap Swap4( Varptr data )
+		Write( Varptr data,4 )
 	End
 	
 	#rem monkeydoc Writes a 64 bit long to the stream.
@@ -424,8 +449,9 @@ Class Stream
 
 	#end
 	Method WriteLong( data:Long )
-		_tmpbuf.PokeLong( 0,data )
-		Write( _tmpbuf.Data,8 )
+
+		If _swap Swap8( Varptr data )
+		Write( Varptr data,8 )
 	End
 	
 	#rem monkeydoc Writes a 64 bit unsigned long to the stream.
@@ -434,8 +460,9 @@ Class Stream
 
 	#end
 	Method WriteULong( data:ULong )
-		_tmpbuf.PokeULong( 0,data )
-		Write( _tmpbuf.Data,8 )
+
+		If _swap Swap8( Varptr data )
+		Write( Varptr data,8 )
 	End
 	
 	#rem monkeydoc Writes a 32 bit float to the stream,
@@ -444,8 +471,9 @@ Class Stream
 
 	#end
 	Method WriteFloat:Void( data:Float )
-		_tmpbuf.PokeFloat( 0,data )
-		Write( _tmpbuf.Data,4 )
+
+		If _swap Swap4( Varptr data )
+		Write( Varptr data,4 )
 	End
 	
 	#rem monkeydoc Writes a 64 bit double to the stream.
@@ -454,8 +482,9 @@ Class Stream
 
 	#end
 	Method WriteDouble( data:Double )
-		_tmpbuf.PokeDouble( 0,data )
-		Write( _tmpbuf.Data,8 )
+
+		If _swap Swap8( Varptr data )
+		Write( Varptr data,8 )
 	End
 	
 	#rem monkeydoc Writes a string to the stream (NOT null terminated).
@@ -464,6 +493,7 @@ Class Stream
 	
 	#end
 	Method WriteString( str:String )
+		
 		Local buf:=New DataBuffer( str.CStringLength )
 		buf.PokeString( 0,str )
 		Write( buf,0,buf.Length )
@@ -476,6 +506,7 @@ Class Stream
 	
 	#end
 	Method WriteSizedString( str:String )
+		
 		WriteInt( str.CStringLength )
 		WriteString( str )
 	End
@@ -486,6 +517,7 @@ Class Stream
 	
 	#end
 	Method WriteCString( str:String )
+		
 		WriteString( str )
 		WriteByte( 0 )
 	End
@@ -496,6 +528,7 @@ Class Stream
 	
 	#end
 	Method WriteLine( str:String )
+		
 		WriteString( str )
 		WriteString( "~r~n" )
 	End
@@ -514,9 +547,8 @@ Class Stream
 		
 		Local proto:=path.Slice( 0,i )
 		Local ipath:=path.Slice( i+2 )
-
+		
 		Return OpenFuncs[proto]( proto,ipath,mode )
-
 	End
 	
 	#rem monkeydoc @hidden
@@ -530,13 +562,32 @@ Class Stream
 	Protected
 	
 	Method New()
-		_tmpbuf=New DataBuffer( 8,ByteOrder.LittleEndian )
+		
+		_swap=false
 	End
 	
-	Method OnClose() Abstract
+	Method OnClose() Virtual
+		
+		Discard()
+	End
 	
 	Private
 	
-	Field _tmpbuf:DataBuffer
+	Field _swap:Bool
+	
+	Function Swap2( v:Void Ptr )
+		Local t:=Cast<UShort Ptr>( v )[0]
+		Cast<UShort Ptr>( v )[0]=(t Shr 8 & $ff) | (t & $ff) Shl 8
+	End
+	
+	Function Swap4( v:Void Ptr )
+		Local t:=Cast<UInt Ptr>( v )[0]
+		Cast<UInt Ptr>( v )[0]=(t Shr 24 & $ff) | (t & $ff) Shl 24 | (t Shr 8 & $ff00) | (t & $ff00) Shl 8
+	End
+	
+	Function Swap8( v:Void Ptr )
+		Local t:=Cast<ULong Ptr>( v )[0]
+		Cast<ULong Ptr>( v )[0]=(t Shr 56 & $ff) | (t & $ff) Shl 56 | (t Shr 40 & $ff00) | (t & $ff00) Shl 40 | (t Shr 24 & $ff0000) | (t & $ff0000) Shl 24 | (t Shr 8 & $ff000000) | (t & $ff000000) Shl 8
+	End
 
 End

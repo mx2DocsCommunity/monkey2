@@ -84,6 +84,7 @@ Class AssignStmtExpr Extends StmtExpr
 			If etype
 				lhs=lhs.RemoveSideEffects( block )
 				Local t:=New BinaryopExpr( op.Slice( 0,-1 ),New ValueExpr( lhs,srcpos,endpos ),Self.rhs,srcpos,endpos )
+				t.srcfile=srcfile
 				rhs=t.Semant( block )
 				op="="
 			Endif
@@ -528,7 +529,7 @@ Class SelectStmtExpr Extends StmtExpr
 			Local values:=New Value[cexpr.exprs.Length]
 			
 			For Local i:=0 Until values.Length
-				values[i]=cexpr.exprs[i].SemantRValue( block,value.type )
+				values[i]=value.Compare( "=",cexpr.exprs[i].SemantRValue( block,value.type ) )
 			Next
 			
 			Local iblock:=New Block( block )

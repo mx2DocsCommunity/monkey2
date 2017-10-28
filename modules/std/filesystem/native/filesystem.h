@@ -3,6 +3,7 @@
 #define BB_FILESYSTEM_H
 
 #include <bbmonkey.h>
+#include <bbplatform.h>
 
 namespace bbFileSystem{
 
@@ -13,6 +14,13 @@ namespace bbFileSystem{
 	bbArray<bbString> appArgs();
 	
 	bbBool copyFile( bbString srcPath,bbString dstPath );
+	
+#if BB_IOS
+	
+	bbString getSpecialDir( bbString name );
+	
+#endif
+
 }
 
 #endif

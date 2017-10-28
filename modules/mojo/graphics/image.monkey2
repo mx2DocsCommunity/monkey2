@@ -35,8 +35,6 @@ Class Image Extends Resource
 	
 	New( image,... ) Creates an image from within an 'atlas' image.
 	
-	Note: `textureFlags` should be null for static images or TextureFlags.Dynamic for dynamic images.
-
 	@param pixmap Source image.
 	
 	@param textureFlags Image texture flags. 
@@ -52,38 +50,28 @@ Class Image Extends Resource
 	@param width,height Image size.
 	
 	#end	
-	Method New( pixmap:Pixmap,textureFlags:TextureFlags=Null,shader:Shader=Null )
+	Method New( pixmap:Pixmap,textureFlags:TextureFlags=TextureFlags.FilterMipmap,shader:Shader=Null )
 		
-		textureFlags=MakeTextureFlags( textureFlags )
-	
 		Local texture:=New Texture( pixmap,textureFlags )
 		
 		Init( texture,shader )
-		
-		AddDependancy( texture )
 	End
 
-	Method New( width:Int,height:Int,textureFlags:TextureFlags=null,shader:Shader=Null )
+	Method New( width:Int,height:Int,format:PixelFormat,textureFlags:TextureFlags=TextureFlags.FilterMipmap,shader:Shader=Null )
 		
-		Self.New( width,height,PixelFormat.RGBA8,textureFlags,shader )
-	End
-
-	Method New( width:Int,height:Int,format:PixelFormat,textureFlags:TextureFlags=Null,shader:Shader=Null )
-		
-		textureFlags=MakeTextureFlags( textureFlags )
-	
 		Local texture:=New Texture( width,height,format,textureFlags )
 		
 		Init( texture,shader )
+	End
+
+	Method New( width:Int,height:Int,textureFlags:TextureFlags=TextureFlags.FilterMipmap,shader:Shader=Null )
 		
-		AddDependancy( texture )
+		Self.New( width,height,PixelFormat.RGBA8,textureFlags,shader )
 	End
 
 	Method New( image:Image )
 	
 		Init( image._textures[0],image._rect,image._shader )
-		
-		image.AddDependancy( Self )
 		
 		For Local i:=1 Until 4
 			SetTexture( i,image.GetTexture( i ) )
@@ -99,8 +87,6 @@ Class Image Extends Resource
 	Method New( image:Image,rect:Recti )
 	
 		Init( image._textures[0],rect+image._rect.Origin,image._shader )
-		
-		image.AddDependancy( Self )
 		
 		For Local i:=1 Until 4
 			SetTexture( i,image.GetTexture( i ) )
@@ -216,26 +202,22 @@ Class Image Extends Resource
 	#end	
 	Property Color:Color()
 	
-		Return _color
+		Return _uniforms.GetColor( "ImageColor" )
 	
 	Setter( color:Color )
 	
-		_color=color
-		
-		_material.SetVec4f( "ImageColor",_color )
+		_uniforms.SetColor( "ImageColor",color )
 	End
 
 	#rem monkeydoc The image light depth.
 	#end
 	Property LightDepth:Float()
 	
-		Return _lightDepth
+		Return _uniforms.GetFloat( "LightDepth" )
 	
 	Setter( depth:Float )
 	
-		_lightDepth=depth
-		
-		_material.SetFloat( "LightDepth",_lightDepth )
+		_uniforms.SetFloat( "LightDepth",depth )
 	End
 
 	#rem monkeydoc Shadow caster attached to image.
@@ -287,13 +269,17 @@ Class Image Extends Resource
 	Property Shader:Shader()
 	
 		Return _shader
+		
+	Setter( shader:Shader )
+	
+		_shader=shader
 	End
 	
 	#rem monkeydoc Image material.
 	#end
 	Property Material:UniformBlock()
 	
-		Return _material
+		Return _uniforms
 	End
 
 	#rem monkeydoc @hidden Image vertices.
@@ -316,7 +302,7 @@ Class Image Extends Resource
 	
 		_textures[index]=texture
 		
-		_material.SetTexture( "ImageTexture"+index,texture )
+		_uniforms.SetTexture( "ImageTexture"+index,texture )
 	End
 	
 	#rem monkeydoc @hidden gets an image's texture.
@@ -325,21 +311,17 @@ Class Image Extends Resource
 	
 		Return _textures[index]
 	End
-	
+
 	#rem monkeydoc Loads an image from file.
 	#end
-	Function Load:Image( path:String,shader:Shader=Null )
+	Function Load:Image( path:String,shader:Shader=Null,textureFlags:TextureFlags=TextureFlags.FilterMipmap )
 		
 		Local pixmap:=Pixmap.Load( path,Null,True )
 		If Not pixmap Return Null
 
 		If Not shader shader=mojo.graphics.Shader.GetShader( "sprite" )
 		
-		Local image:=New Image( pixmap,Null,shader )
-			
-		image.OnDiscarded+=Lambda()
-			pixmap.Discard()
-		End
+		Local image:=New Image( pixmap,textureFlags,shader )
 		
 		Return image
 	End
@@ -351,35 +333,27 @@ Class Image Extends Resource
 	`specular` can be null, in which case `specularScale` is used for the specular component. Otherwise, `specularScale` is used to modulate the red component of the specular texture.
 	
 	#end
-	Function LoadBump:Image( diffuse:String,normal:String,specular:String,specularScale:Float=1,flipNormalY:Bool=True,shader:Shader=Null )
+	Function LoadBump:Image( diffuse:String,normal:String,specular:String,specularScale:Float=1,flipNormalY:Bool=True,shader:Shader=Null,textureFlags:TextureFlags=TextureFlags.FilterMipmap )
 	
 		Local texture1:=graphics.Texture.LoadNormal( normal,Null,specular,specularScale,flipNormalY )
 		If Not texture1 Return Null
 		
-		Local texture0:=graphics.Texture.Load( diffuse,Null )
+		Local texture0:=graphics.Texture.Load( diffuse,textureFlags )
 		
-		If Not texture0
-			Local pdiff:=New Pixmap( texture1.Width,texture1.Height,PixelFormat.I8 )
-			pdiff.Clear( std.graphics.Color.White )
-			texture0=New graphics.Texture( pdiff,Null )
-		Endif
+		If Not texture0 texture0=graphics.Texture.ColorTexture( std.graphics.Color.White )
 		
 		If Not shader shader=graphics.Shader.GetShader( "bump" )
 		
 		Local image:=New Image( texture0,shader )
+
 		image.SetTexture( 1,texture1 )
-		
-		image.OnDiscarded+=Lambda()
-			If texture0 texture0.Discard()
-			If texture1 texture1.Discard()
-		End
 		
 		Return image
 	End
 
 	#rem monkeydoc Loads a light image from file.
 	#end
-	Function LoadLight:Image( path:String,shader:Shader=Null )
+	Function LoadLight:Image( path:String,shader:Shader=Null,textureFlags:TextureFlags=TextureFlags.FilterMipmap )
 	
 		Local pixmap:=Pixmap.Load( path )
 		If Not pixmap Return Null
@@ -393,9 +367,7 @@ Class Image Extends Resource
 			
 		Case PixelFormat.A8
 
-			Local tpixmap:=pixmap
 			pixmap=pixmap.Convert( PixelFormat.IA16 )
-			tpixmap.Discard()
 
 			'Copy A->I
 			For Local y:=0 Until pixmap.Height
@@ -408,9 +380,7 @@ Class Image Extends Resource
 
 		Case PixelFormat.I8
 		
-			Local tpixmap:=pixmap
 			pixmap=pixmap.Convert( PixelFormat.IA16 )
-			tpixmap.Discard()
 			
 			'Copy I->A
 			For Local y:=0 Until pixmap.Height
@@ -423,9 +393,7 @@ Class Image Extends Resource
 
 		Case PixelFormat.RGB24
 		
-			Local tpixmap:=pixmap
 			pixmap=pixmap.Convert( PixelFormat.RGBA32 )
-			tpixmap.Discard()
 			
 			'Copy Max(R,G,B)->A
 			For Local y:=0 Until pixmap.Height
@@ -438,26 +406,30 @@ Class Image Extends Resource
 		
 		End
 		
-		Local texture:=New Texture( pixmap,Null )
+		Local texture:=New Texture( pixmap,textureFlags )
 		
 		Local image:=New Image( texture,shader )
 		
-		image.OnDiscarded+=Lambda()
-			pixmap.Discard()
-		End
-		
 		Return image
 	End
+	
+	Protected
 
+	#rem monkeydoc @hidden
+	#end	
+	Method OnDiscard() Override
+
+		SafeDiscard( _uniforms )
+		_uniforms=Null
+		_textures=Null
+	End
+	
 	Private
 	
 	Field _shader:Shader
-	Field _material:UniformBlock
-
+	Field _uniforms:UniformBlock
 	Field _textures:=New Texture[4]
 	Field _blendMode:BlendMode
-	Field _color:Color
-	Field _lightDepth:Float
 	Field _shadowCaster:ShadowCaster
 	
 	Field _rect:Recti
@@ -480,9 +452,7 @@ Class Image Extends Resource
 	
 		_rect=rect
 		_shader=shader
-		_material=New UniformBlock( 2 )
-		
-		AddDependancy( _material )
+		_uniforms=New UniformBlock( 3 )
 		
 		SetTexture( 0,texture )
 		
@@ -519,15 +489,6 @@ Class Image Extends Resource
 		_texCoords.max.y=Float(_rect.max.y)/_textures[0].Height
 	End
 	
-	Method MakeTextureFlags:TextureFlags( textureFlags:TextureFlags )
-		
-		textureFlags|=TextureFlags.Filter
-		
-		If Not (textureFlags & TextureFlags.Dynamic) textureFlags|=textureFlags.Mipmap
-		
-		Return textureFlags
-	End
-	
 End
 
 Class ResourceManager Extension
@@ -538,11 +499,14 @@ Class ResourceManager Extension
 		
 		Local image:=Cast<Image>( OpenResource( slug ) )
 		If image Return image
-
-		Local texture:=OpenTexture( path,Null )
-		If texture image=New Image( texture,shader )
 		
+		Local texture:=OpenTexture( path,Null )
+		If Not texture Return Null
+		
+		image=New Image( texture,shader )
+
 		AddResource( slug,image )
+
 		Return image
 	End
 

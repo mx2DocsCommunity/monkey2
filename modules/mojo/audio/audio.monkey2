@@ -6,6 +6,14 @@ Highly experimental audio module!
 #end
 Namespace mojo.audio
 
+#Import "native/bbmusic.cpp"
+
+#Import "native/bbmusic.h"
+
+Extern Private
+
+Function playMusic:Bool( path:CString,callback:int,source:Int )="bbMusic::playMusic"
+	
 Private
 
 Function ALFormat:ALenum( format:AudioFormat )
@@ -25,18 +33,36 @@ End
 
 Public
 
-#rem monkeydoc Global instance of the AudioDevice class.
+#rem monkeydoc @hidden Global instance of the AudioDevice class.
 #end
 Const Audio:=New AudioDevice
 
-#rem monkeydoc The AudioDevice class.
+#rem monkeydoc @hidden The AudioDevice class.
 #end
 Class AudioDevice
 
-	'***** Internal *****
+	Function PlayMusic:Channel( path:String,finished:Void()=Null,paused:Bool=False )
+		
+		Local channel:=New Channel( Null )
+		
+		Local callback:=async.CreateAsyncCallback( Lambda()
+			channel.Discard()
+			finished()
+		End,True )
+		
+		path=filesystem.RealPath( path )
+		
+		If Not playMusic( path,callback,channel._alSource ) 
+			async.DestroyAsyncCallback( callback )
+			channel.Discard()
+			Return Null
+		Endif
+		
+		Return channel
+	End
+
+	Internal
 	
-	#rem monkeydoc @hidden
-	#end
 	Method Init()
 	
 		Local error:=""
@@ -69,11 +95,12 @@ End
 
 #rem monkeydoc The Sound class.
 #end
-Class Sound
+Class Sound Extends Resource
 
 	#rem monkeydoc Creates a new sound.
 	#end
 	Method New( data:AudioData )
+		
 		alGenBuffers( 1,Varptr _alBuffer )
 		alBufferData( _alBuffer,ALFormat( data.Format ),data.Data,data.Size,data.Hertz )
 		_format=data.Format
@@ -81,35 +108,31 @@ Class Sound
 		_hertz=data.Hertz
 	End
 	
-	#rem monkeydoc Discards a sound.
-	#end
-	Method Discard()
-		If Not _alBuffer Return
-		alDeleteBuffers( 1,Varptr _alBuffer )
-		_alBuffer=0
-	End
-	
 	#rem monkeydoc The length, in samples, of the sound.
 	#end
 	Property Length:Int()
+		
 		Return _length
 	End
 	
 	#rem monkeydoc The format of the sound.
 	#end
 	Property Format:AudioFormat()
+		
 		Return _format
 	End
 	
 	#rem monkeydoc The playback rate of the sound.
 	#end
 	Property Hertz:Int()
+		
 		Return _hertz
 	End
 	
 	#rem monkeydoc The duration, in seconds, of the sound.
 	#end
 	Property Duration:Double()
+		
 		Return Double(_length)/Double(_hertz)
 	End
 	
@@ -140,6 +163,20 @@ Class Sound
 		Return sound
 	End
 	
+	Protected
+	
+	Method OnDiscard() Override
+		
+		If _alBuffer alDeleteBuffers( 1,Varptr _alBuffer )
+			
+		_alBuffer=0
+	End
+	
+	Method OnFinalize() Override
+		
+		If _alBuffer alDeleteBuffers( 1,Varptr _alBuffer )
+	End
+	
 	Private
 	
 	Field _alBuffer:ALuint
@@ -157,10 +194,11 @@ End
 
 #end
 Enum ChannelFlags
+	
 	AutoDiscard=1
 End
 
-Class Channel
+Class Channel Extends Resource
 
 	#rem monkeydoc Creates a new audio channel.
 	
@@ -172,15 +210,11 @@ Class Channel
 	
 		_flags=flags
 	
-		FlushTmpChannels()
+		FlushAutoDiscard()
 		
 		alGenSources( 1,Varptr _alSource )
 		
-		If _flags & ChannelFlags.AutoDiscard _tmpChannels.Push( Self )
-		
-		_active+=1
-		
-'		Print "Active channels="+_active
+		If _flags & ChannelFlags.AutoDiscard _autoDiscard.Push( Self )
 	End
 	
 	Property Flags:ChannelFlags()
@@ -306,18 +340,6 @@ Class Channel
 		alSourcef( _alSource,AL_SEC_OFFSET,time )
 	End
 	
-	#rem monkeydoc Discards channel resources.
-	#end
-	Method Discard()
-		If Not _alSource Return
-		
-		alDeleteSources( 1,Varptr _alSource )
-		_alSource=0
-		
-		_active-=1
-		Print "Active channels="+_active
-	End
-
 	#rem monkeydoc Plays a sound through the channel.
 	#end
 	Method Play( sound:Sound,loop:Bool=False )
@@ -400,6 +422,24 @@ Class Channel
 		
 		If _flags & ChannelFlags.AutoDiscard Discard()
 	End
+	
+	Protected
+	
+	#rem monkeydoc @hidden
+	#end
+	Method OnDiscard() Override
+
+		If _alSource alDeleteSources( 1,Varptr _alSource )
+		
+		_alSource=0
+	End
+	
+	#rem monkeydoc @hidden
+	#end
+	Method OnFinalize() Override
+
+		If _alSource alDeleteSources( 1,Varptr _alSource )
+	End
 
 	Private
 	
@@ -409,9 +449,7 @@ Class Channel
 	Field _rate:Float=1
 	Field _pan:Float=0
 	
-	Global _active:=0
-	
-	Global _tmpChannels:=New Stack<Channel>
+	Global _autoDiscard:=New Stack<Channel>
 	
 	Method ALState:ALenum()
 		Local state:ALenum
@@ -419,21 +457,22 @@ Class Channel
 		Return state
 	End
 	
-	Function FlushTmpChannels()
+	Function FlushAutoDiscard()
 	
 		Local put:=0
-		For Local chan:=Eachin _tmpChannels
+		
+		For Local chan:=Eachin _autoDiscard
 			If Not chan._alSource Continue
 		
 			If chan.ALState()<>AL_STOPPED
-				_tmpChannels[put]=chan;put+=1
+				_autoDiscard[put]=chan;put+=1
 				Continue
 			Endif
 			
 			chan.Discard()
 		Next
 
-		_tmpChannels.Resize( put )
+		_autoDiscard.Resize( put )
 	End
 	
 	#if __TARGET__<>"emscripten"
@@ -450,8 +489,6 @@ Class Channel
 		Local proc:ALint
 		alGetSourcei( _alSource,AL_BUFFERS_PROCESSED,Varptr proc )
 		
-'		Print "processed: "+proc
-
 		If Not proc Return 0
 		
 		For Local i:=0 Until proc

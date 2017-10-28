@@ -76,6 +76,10 @@ Alias intptr_t:ULong
 Alias uintptr_t:ULong
 
 Function sizeof<T>:size_t( t:T )="sizeof"
+	
+'***** limits.h *****
+
+Const PATH_MAX:Int
 
 '***** stdio.h *****
 
@@ -112,13 +116,17 @@ Function puts:Int( str:CString )
 Function malloc:Void Ptr( size:Int )
 Function free:Void( mem:Void Ptr )
 
+#If __TARGET__<>"ios"	'gone in ios11!
 Function system:Int( cmd:CString )="system_"
+#endif
 Function setenv:Int( name:CString,value:CString,overwrite:Int )="setenv_"
-Function getenv:char_t Ptr( name:CString )
+Function getenv:char_t ptr( name:CString )
 
 Function exit_:Void( status:Int )="exit"
 Function atexit:Int( func:Void() )="atexit" 
 Function abort:Void()
+	
+Function realpath:char_t Ptr( path:CString,resolved_path:char_t Ptr )
 
 '***** string.h *****
 

@@ -32,10 +32,6 @@ End
 #end
 Class Window Extends View
 
-	Method New()
-		Init( "Window",New Recti( 0,0,640,480 ),WindowFlags.Center )
-	End
-	
 	Method New( title:String="Window",width:Int=640,height:Int=480,flags:WindowFlags=Null )
 		Init( title,New Recti( 0,0,width,height ),flags|WindowFlags.Center )
 	End
@@ -146,6 +142,7 @@ Class Window Extends View
 	
 	#end	
 	Method BeginFullscreen()
+		
 		SDL_SetWindowFullscreen( _sdlWindow,SDL_WINDOW_FULLSCREEN_DESKTOP )
 	End
 	
@@ -155,6 +152,7 @@ Class Window Extends View
 	
 	#end
 	Method BeginFullscreen( width:Int,height:Int,hertz:Int )
+		
 		Local mode:SDL_DisplayMode
 		mode.w=width
 		mode.h=height
@@ -168,24 +166,28 @@ Class Window Extends View
 	#rem monkeydoc Ends fullscreen mode.
 	#end
 	Method EndFullscreen()
+		
 		SDL_SetWindowFullscreen( _sdlWindow,0 )
 	End
 
 	#rem monkeydoc Maximizes the window.
 	#end	
 	Method Maximize()
+		
 		SDL_MaximizeWindow( _sdlWindow )
 	End
 	
 	#rem monkeydoc Minimizes the window.
 	#end	
 	Method Minimize()
+		
 		SDL_MinimizeWindow( _sdlWindow )
 	End
 	
 	#rem monkeydoc Restores the window.
 	#end	
 	Method Restore()
+		
 		SDL_RestoreWindow( _sdlWindow )
 	End
 	
@@ -217,6 +219,7 @@ Class Window Extends View
 	#rem monkeydoc @hidden The internal SDL_GLContext used by this window.
 	#end	
 	Property SDLGLContext:SDL_GLContext()
+		
 		Return _sdlGLContext
 	End
 
@@ -259,7 +262,7 @@ Class Window Extends View
 		Case EventType.WindowMoved,EventType.WindowResized
 			_frame=GetFrame()
 			Frame=_frame
-			_weirdHack=true
+			_weirdHack=True
 		End
 		
 		OnWindowEvent( event )
@@ -342,20 +345,6 @@ Class Window Extends View
 	Global _visibleWindows:=New Stack<Window>
 	Global _windowsByID:=New Map<UInt,Window>
 	
-	Method UpdateMouseScale()
-	
-		Local w:Int,h:Int,dw:Int,dh:Int
-		
-		SDL_GetWindowSize( _sdlWindow,Varptr w,Varptr h )
-		
-#If __TARGET__="emscripten"
-		emscripten_get_canvas_size( Varptr dw,Varptr dh,Null )'Varptr fs )
-#Else
-		SDL_GL_GetDrawableSize( _sdlWindow,Varptr dw,Varptr dh )
-#Endif
-		_mouseScale=New Vec2f( Float(dw)/w,Float(dh)/h )
-	End
-	
 	Method SetMinSize( size:Vec2i )
 		size/=_mouseScale
 		SDL_SetWindowMinimumSize( _sdlWindow,size.x,size.y )
@@ -391,8 +380,22 @@ Class Window Extends View
 		Return New Recti( x,y,x+w,y+h ) * _mouseScale
 	End
 	
+	Method UpdateMouseScale()
+	
+		Local w:Int,h:Int,dw:Int,dh:Int
+		
+		SDL_GetWindowSize( _sdlWindow,Varptr w,Varptr h )
+		
+#If __TARGET__="emscripten"
+		emscripten_get_canvas_size( Varptr dw,Varptr dh,Null )
+#Else
+		SDL_GL_GetDrawableSize( _sdlWindow,Varptr dw,Varptr dh )
+#Endif
+		_mouseScale=New Vec2f( Float(dw)/w,Float(dh)/h )
+	End
+	
 	Method LayoutWindow()
-
+		
 		'All this polling is a bit ugly...fixme.
 		'		
 #If __DESKTOP_TARGET__
@@ -415,6 +418,12 @@ Class Window Extends View
 			_frame=Frame
 			_weirdHack=True
 		Endif
+		
+#Else if __WEB_TARGET__
+
+		Local dw:Int,dh:Int
+		emscripten_get_canvas_size( Varptr dw,Varptr dh,Null )
+		Frame=New Recti( 0,0,dw,dh )
 #Else
 		_frame=GetFrame()
 		Frame=_frame
@@ -427,7 +436,7 @@ Class Window Extends View
 	#rem monkeydoc @hidden
 	#end
 	Method RenderWindow()
-	
+		
 		If _maxfudge
 			_maxfudge-=1
 			App.RequestRender()
@@ -457,10 +466,13 @@ Class Window Extends View
 		_canvas.EndRender()
 		
 		SDL_GL_SwapWindow( _sdlWindow )
+		
 	End
 	
 	Method Init( title:String,rect:Recti,flags:WindowFlags )
 		Style=GetStyle( "Window" )
+		
+		If flags & WindowFlags.Hidden Visible=False
 	
 		Local x:=(flags & WindowFlags.CenterX) ? SDL_WINDOWPOS_CENTERED Else rect.X
 		Local y:=(flags & WindowFlags.CenterY) ? SDL_WINDOWPOS_CENTERED Else rect.Y
@@ -484,7 +496,7 @@ Class Window Extends View
 		Endif
 		
 		If flags & WindowFlags.Hidden sdlFlags|=SDL_WINDOW_HIDDEN
-		
+			
 		If flags & WindowFlags.Resizable sdlFlags|=SDL_WINDOW_RESIZABLE
 		
 		If flags & WindowFlags.Borderless sdlFlags|=SDL_WINDOW_BORDERLESS
@@ -507,6 +519,8 @@ Class Window Extends View
 			Assert( _sdlGLContext,"FATAL ERROR: SDL_GL_CreateContext failed" )
 		Endif
 		SDL_GL_MakeCurrent( _sdlWindow,_sdlGLContext )
+		
+		InitGLexts()
 		
 		_allWindows.Push( Self )
 		_windowsByID[SDL_GetWindowID( _sdlWindow )]=Self
@@ -543,5 +557,19 @@ Class Window Extends View
 		UpdateActive()
 
 		LayoutWindow()
+
+		Activated+=Lambda()
+			Local flags:=Cast<SDL_WindowFlags>( SDL_GetWindowFlags( _sdlWindow ) )
+			If (flags & SDL_WINDOW_HIDDEN)
+				SDL_ShowWindow( _sdlWindow )
+				SDL_RaiseWindow( _sdlWindow )
+				_visibleWindows.Push( Self )
+			Endif
+		End
+		
+		Deactivated+=Lambda()
+			RuntimeError( "Windows cannot be deactivated" )
+		End
+
 	End
 End

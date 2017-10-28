@@ -258,14 +258,16 @@ Class PrimType Extends Type
 	Method DistanceToType:Int( type:Type ) Override
 	
 		If type.Equals( Self ) Return 0
+		
 		If type.Equals( BoolType ) Return MAX_DISTANCE
+		
 		If type.Equals( VariantType ) Return MAX_DISTANCE
 		
 		Select type
 		Case StringType
 
 			'numeric->string
-			If IsNumeric Return MAX_DISTANCE
+			If IsNumeric Or Self=BoolType Return MAX_DISTANCE
 
 		Case CStringClass
 		
@@ -504,6 +506,9 @@ Class PointerType Extends Type
 		
 		Local ptype:=TCast<PrimType>( type )
 		If ptype And ptype.IsIntegral Return True
+		
+		Local ctype:=TCast<ClassType>( type )
+		If ctype Return elemType.Equals( VoidType ) And ctype.cdecl.kind<>"struct"
 		
 		Return False
 	End

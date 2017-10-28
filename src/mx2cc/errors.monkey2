@@ -25,7 +25,7 @@ Class ParseEx Extends ErrorEx
 		Self.srcfile=srcfile
 		Self.srcpos=srcpos
 		
-		Print ToString()
+		If srcfile Print ToString()
 	End
 	
 	Method ToString:String() Override
@@ -56,6 +56,7 @@ Class SemantEx Extends ErrorEx
 	Method ToString:String() Override
 		If Not pnode Return "? [?] : Error : "+msg
 		Local fdecl:=pnode.srcfile
+		If Not fdecl Return "????? ["+(pnode.srcpos Shr 12)+"] : Error : "+msg
 		Return fdecl.path+" ["+(pnode.srcpos Shr 12)+"] : Error : "+msg
 	End
 	
@@ -124,7 +125,6 @@ End
 
 Function SemantError( func:String )
 	Print "~n".Join( GetDebugStack() )
-	DebugStop()
 	Throw New SemantEx( func+" Internal Error" )
 End
 

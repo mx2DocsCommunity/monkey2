@@ -3,6 +3,8 @@ Namespace ted2
 
 Private
 
+Const MONKEY2_DOMAIN:="monkeycoder.co.nz"
+
 Class Module
 	Field name:String
 	Field about:String
@@ -97,8 +99,7 @@ Class ModuleManager Extends Dialog
 	
 	Private
 	
-'	Const downloadUrl:="http://monkey2.monkey-x.com/wp-content/uploads/mx2-modules/public/"
-	Const downloadUrl:="http://monkey2.monkey-x.com/send-file?file="
+	Const downloadUrl:="http://"+MONKEY2_DOMAIN+"/send-file?file="
 	
 	Const downloadDir:="modules/module-manager/downloads/"
 	
@@ -202,13 +203,19 @@ Class ModuleManager Extends Dialog
 			Local dst:=downloadDir+zip
 
 #if __HOSTOS__="macos"
-			Local cmd:="curl -o ~q"+dst+"~q -data-binary ~q"+src+"~q"
+			Local cmd:="curl -s -o ~q"+dst+"~q -data-binary ~q"+src+"~q"
 #Else
-			Local cmd:="wget -O ~q"+dst+"~q ~q"+src+"~q"
+			Local cmd:="wget -q -O ~q"+dst+"~q ~q"+src+"~q"
 #Endif
 			_progress.Text="Downloading "+zip+"..."
 			
-			If Not _console.Run( cmd ) Return False
+			Print "CD="+CurrentDir()
+			Print "cmd="+cmd
+			
+			If Not _console.Run( cmd )
+				Print "FALSE!"
+				Return False
+			Endif
 			
 			If _console.ExitCode
 				Alert( "Process '"+cmd+"' failed with exit code "+_console.Process.ExitCode )
@@ -411,8 +418,7 @@ Class ModuleManager Extends Dialog
 	
 	Method EnumRemoteModules:Bool()
 	
-'		Local src:="http://localhost/monkey2/module-manager/?modules=1"
-		Local src:="http://monkey2.monkey-x.com/module-manager/?modules=1"
+		Local src:="http://monkeycoder.co.nz/module-manager/?modules=1"
 		
 		Local tmp:="tmp/modules.json"
 	
@@ -428,10 +434,10 @@ Class ModuleManager Extends Dialog
 		progress.Open()
 		
 #if __HOSTOS__="macos"
-		Local cmd:="curl -o ~q"+tmp+"~q ~q"+src+"~q"
-#else
-		Local cmd:="wget -O ~q"+tmp+"~q ~q"+src+"~q"
-#endif
+		Local cmd:="curl -s -o ~q"+tmp+"~q ~q"+src+"~q"
+#Else
+		Local cmd:="wget -q -O ~q"+tmp+"~q ~q"+src+"~q"
+#Endif
 		If Not _console.Run( cmd )
 		
 			progress.Close()

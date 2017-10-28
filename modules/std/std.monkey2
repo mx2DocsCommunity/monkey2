@@ -7,6 +7,13 @@ Namespace std
 #import "<stb-vorbis>"
 #Import "<miniz>"
 
+#If __MOBILE_TARGET__
+#Import "<sdl2>"
+#If __TARGET__="android"
+#Import "<jni>"
+#Endif
+#Endif
+
 #Import "collections/container"
 #Import "collections/stack"
 #Import "collections/list"
@@ -17,6 +24,10 @@ Namespace std
 
 #Import "stream/stream"
 #Import "stream/filestream"
+
+#If __MOBILE_TARGET__
+#Import "stream/sdl_rwstream.monkey2"
+#Endif
 
 #Import "memory/byteorder"
 #Import "memory/databuffer"
@@ -72,44 +83,79 @@ Namespace std
 
 #Import "requesters/requesters"
 
+#Import "permissions/permissions"
+
 Private
 
 Function Main()
 
 	'Capture app start time
 	'
-	std.time.Microsecs()
+	std.time.Now()
 
-	'Add 'file::' stream protocol
+	'Add stream handlers
 	'
 	Stream.OpenFuncs["file"]=Lambda:Stream( proto:String,path:String,mode:String )
 
 		Return FileStream.Open( path,mode )
 	End
 	
+#If __MOBILE_TARGET__
+	
+	Stream.OpenFuncs["internal"]=Lambda:Stream( proto:String,path:String,mode:String )
+	
+		Return FileStream.Open( filesystem.InternalDir()+path,mode )
+	End
+
+	Stream.OpenFuncs["external"]=Lambda:Stream( proto:String,path:String,mode:String )
+	
+		Return FileStream.Open( filesystem.ExternalDir()+path,mode )
+	End
+
+#endif
+	
 #If __DESKTOP_TARGET__
 
-	'Add 'process::' stream protocol
-	'
 	Stream.OpenFuncs["process"]=Lambda:Stream( proto:String,path:String,mode:String )
 
 		Return std.process.ProcessStream.Open( path,mode )
 	End
 	
-#Endif
+	Stream.OpenFuncs["desktop"]=Lambda:Stream( proto:String,path:String,mode:String )
 	
-#If Not __MOBILE_TARGET__
+		Return FileStream.Open( filesystem.DesktopDir()+path,mode )
+	End
 
-	'Add 'asset::' stream protocol
-	'	
-	'Note: "asset::" support for android/ios is in mojo, as it uses SDL_RWop and we don't want std to be dependant on SDL2...
-	'	
-	Stream.OpenFuncs["asset"]=Lambda:Stream( proto:String,path:String,mode:String )
-
-		Return FileStream.Open( filesystem.AssetsDir()+path,mode )
-
+	Stream.OpenFuncs["home"]=Lambda:Stream( proto:String,path:String,mode:String )
+	
+		Return FileStream.Open( filesystem.HomeDir()+path,mode )
 	End
 	
-#endif
+#Endif
+
+#If __DESKTOP_TARGET__ Or __WEB_TARGET__
+
+	'note: ios and android asset proto is implemented using SDL and implemented in mojo...
+	'
+	Stream.OpenFuncs["asset"]=Lambda:Stream( proto:String,path:String,mode:String )
+	
+		Return FileStream.Open( filesystem.AssetsDir()+path,mode )
+	End
+
+#Else If __TARGET__="android"
+
+	Stream.OpenFuncs["asset"]=Lambda:Stream( proto:String,path:String,mode:String )
+	
+		Return SDL_RWStream.Open( path,mode )
+	End
+
+#Else If __TARGET__="ios"
+
+	Stream.OpenFuncs["asset"]=Lambda:Stream( proto:String,path:String,mode:String )
+	
+		Return SDL_RWStream.Open( "assets/"+path,mode )
+	End
+	
+#Endif
 	
 End

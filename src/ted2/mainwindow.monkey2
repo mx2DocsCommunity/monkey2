@@ -1,8 +1,6 @@
 
 Namespace ted2
 
-#Import "assets/about.html@/ted2"
-
 #Import "assets/themes/@/themes"
 
 #Import "assets/newfiles/@/ted2/newfiles"
@@ -15,6 +13,11 @@ Class MainWindowInstance Extends Window
 		Super.New( title,rect,flags )
 		
 		MainWindow=Self
+		
+		If Not App.Theme.Load( jobj.GetString( "theme" ) )
+			jobj.SetString( "theme","ted2-default" )
+			App.Theme.Load( "ted2-default" )
+		Endif
 		
 		_tmp=RealPath( "tmp/" )
 		
@@ -58,10 +61,7 @@ Class MainWindowInstance Extends Window
 		_buildConsole=New Console
 		_outputConsole=New Console
 		_helpView=New HtmlView
-'		_helpView.Style=New Style( _helpView.Style )
-'		_helpView.Style.Border=New Recti( 0,-4,0,0 )
-'		_helpView.Style.BorderColor=App.Theme.GetColor( "content" )
-		_helpView.Go( "asset::ted2/about.html" )
+		_helpView.Go( "ABOUT.HTML" )
 		
 		_projectView=New ProjectView( _docsManager )
 		
@@ -635,7 +635,11 @@ Class MainWindowInstance Extends Window
 			Local value:=it.Value.ToString()
 			menu.AddAction( name ).Triggered=Lambda()
 				_theme=value
-				App.Theme.Load( _theme,New Vec2f( _themeScale ) )
+				If Not App.Theme.Load( _theme,New Vec2f( _themeScale ) )
+					If Not App.Theme.Load( "ted2-default" )
+					Endif
+					_theme="ted2-default"
+				Endif
 				SaveState()
 			End
 		Next

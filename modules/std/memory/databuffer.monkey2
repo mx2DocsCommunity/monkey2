@@ -43,16 +43,11 @@ Class DataBuffer Extends std.resource.Resource
 	
 	#end
 	Method New( length:Int,byteOrder:ByteOrder=std.memory.ByteOrder.LittleEndian )
-	
-		_length=length
-		_data=Cast<UByte Ptr>( libc.malloc( length ) )
-		_byteOrder=byteOrder
-		_swapEndian=False
 		
-		OnDiscarded+=Lambda()
-			libc.free( _data )
-			_data=Null
-		End
+		_length=length
+		_data=Cast<UByte Ptr>( GCMalloc( length ) )
+		_byteOrder=byteOrder
+		_swapEndian=(_byteOrder=ByteOrder.BigEndian)
 	End
 	
 	#rem monkeydoc A raw pointer to the databuffer's internal memory.
@@ -87,9 +82,10 @@ Class DataBuffer Extends std.resource.Resource
 	
 	#end	
 	Method Resize( length:Int )
-		Local data:=Cast<UByte Ptr>( libc.malloc( length ) )
+		Local data:=Cast<UByte Ptr>( GCMalloc( length ) )
 		libc.memcpy( data,_data,Min( length,_length ) )
-		libc.free( _data )
+		GCFree( _data )
+		_length=length
 		_data=data
 	End
 	
@@ -280,7 +276,20 @@ Class DataBuffer Extends std.resource.Resource
 		Return String.FromCString( _data+offset,count )
 	End
 	
-	#rem monkeydoc Writes a byte to the databuffer
+	#rem monkeydoc Reads a null terminated CString from the databuffer.
+	#end
+	Method PeekCString:String( offset:Int )
+		DebugAssert( offset>=0 And offset<=_length )
+		
+		Local i:=offset
+		While i<_length And _data[i]
+			i+=1
+		Wend
+		
+		Return PeekString( offset,i-offset )
+	End
+		
+	#rem monkeydoc Writes a byte to the databuffer.
 	
 	In debug builds, a runtime error will occur if `offset` is outside the range of the databuffer.
 	
@@ -421,6 +430,8 @@ Class DataBuffer Extends std.resource.Resource
 	#rem monkeydoc Write a string to the databuffer.
 
 	If there is not enough room in the data buffer, the string data is truncated.
+		
+	The string is written in utf8 format, but no null terminator is written. Use [[PokeCString]] to write a null terminated string.
 	
 	@param offset Byte offset to write the string.
 	
@@ -434,7 +445,15 @@ Class DataBuffer Extends std.resource.Resource
 		If offset+count>_length count=_length-offset
 		value.ToCString( _data+offset,count )
 	End
-
+	
+	#rem monkeydoc Writes a null terminated CString to the data buffer.
+	#end
+	Method PokeCString( offset:Int,value:String )
+		DebugAssert( offset>=0 And offset<=_length )
+		
+		value.ToCString( _data+offset,_length-offset )
+	End
+	
 	#rem monkeydoc Creates a slice of the databuffer.
 	#end
 	Method Slice:DataBuffer( from:Int=0 )
@@ -523,7 +542,25 @@ Class DataBuffer Extends std.resource.Resource
 		
 		Return data
 	End
+	
+	Protected
 
+	#rem monkeydoc @hidden
+	#end	
+	Method OnDiscard() Override
+		
+		GCFree( _data )
+		
+		_data=Null
+	End
+
+	#rem monkeydoc @hidden
+	#end	
+	Method OnFinalize() Override
+		
+		GCFree( _data )
+	End
+	
 	Private
 	
 	Field _data:UByte Ptr

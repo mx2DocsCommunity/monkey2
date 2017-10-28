@@ -1,187 +1,104 @@
 
 Namespace std.resource
 
-#rem
+#Import "native/bbresource.cpp"
 
-Ok, the basic rules for resource management are:
+#Import "native/bbresource.h"
 
-* If you create a resource using 'New' or 'Load', you must either Retain() it, Discard() it or add it as a dependancy of another resource (same as retaining it really).
+Extern Private
 
-* If you Retain() a resource, you must eventually Release() it.
+Class BBResource="bbResource"
+	
+	Protected
+	
+	Method OnDiscard() Virtual="onDiscard"
+	
+	Method OnFinalize() Virtual="onFinalize"
+	
+	Internal
 
-* If you open a resource from a resource manager using an OpenBlah method, it will be managed for you.
-
-* Discarding() a resource manager releases any resources it is managing.
-
-Note:
-
-AddDependancy( r1,r2 ) is pretty much the same as:
-
-r2.Retain()
-r1.OnDiscarded+=Lambda()
-	r2.Release()
+	Method InternalDiscard()="discard"
+	
 End
 
-Implemented as a stack for now so I can debug it.
+Public
 
+#Rem monkeydoc The Resource class.
+
+The resource class helps with managing finite OS resources in a garbage collected environment.
+
+To implement a resource object, you should extend the Resource class and override the [[OnDiscard]] and/or [[OnFinalize]] methods.
+
+Code to actually discard the resource should be placed in OnDiscard. Discarding a resource might involve closing a file, deleting 
+a texture handle or other similar actions. 'Last chance' cleanup code should be placed in OnFinalize.
+
+IMPORTANT! There are a number of restrictions on code that may be placed in OnFinalize, please refer to the documentation for [[OnFinalize]]
+for more information.
+	
 #end
-
-Class Resource
-
-	#rem monkeydoc Invoked when the resource is discarded.
-	#end
-	Field OnDiscarded:Void()
+Class Resource Extends BBResource
 	
-	#rem monkeydoc Creates a new resource.
-	
-	The reference count for a resource is initially 0.
-	
-	#end
-	Method New()
-
-		_live.Push( Self )
-	End
-	
-	#rem monkeydoc True if resource has been discarded.
-	#end
-	Property Discarded:Bool()
-	
-		Return _refs=-1
-	End
-
-	#rem monkeydoc Retains the resource.
-	
-	Increments the resource's reference count by 1.
-	
-	Resources with a reference counter >0 will not be discarded.
-	
-	#end
-	Method Retain()
-		DebugAssert( _refs>=0 )
+	#rem monkeyoc Discards the resource.
 		
-		_refs+=1
-	End
+	If the resource has not yet been discarded, calling this method will cause any internally managed OS resources to be cleaned up.
 	
-	#rem monkeydoc Releases the resource.
-	
-	Decrements the resource's reference count by 1.
-	
-	If the reference count becomes 0, the resource is discarded.
-	
-	#end
-	Method Release()
-
-		DebugAssert( _refs>0 )
+	If the resource has already been discarded, this method does nothing.
 		
-		_refs-=1
-		
-		If Not _refs Discard()
-	End
-	
-	#rem monkeydoc Discards the resource.
-	
-	If the resource's reference count is >0 or the resource has already been discarded, nothing happens.
-	
-	If the resource's reference count is 0, the resource is discarded. First, OnDiscard() is called, then OnDiscarded() and finally any dependancies are released.
+	Once discarded, a resource should be consider invalid.
 	
 	#end
 	Method Discard()
-		If _refs Return
 		
-		_refs=-1
-		
-		_live.Remove( Self )
-	
-		OnDiscard()
-		
-		OnDiscarded()
-		
-		If Not _depends Return
-		
-		For Local r:=Eachin _depends
-			r.Release()
-		Next
-		
-		_depends=Null
-	End
-	
-	#rem monkeydoc Adds a dependancy to the resource.
-	
-	Adds `resource` to the list of dependancies for this resource and retains it.
-	
-	When this resource is eventually discarded, `resource` will be automatically released.
-	
-	#end
-	Method AddDependancy( resource:Resource )
-		DebugAssert( _refs>=0 And resource._refs>=0 )
-		
-		If Not _depends _depends=New Stack<Resource>
-		
-		_depends.Add( resource )
-		
-		resource.Retain()
-	End
-
-	#rem monkeydoc @hidden
-	#end	
-	Function NumLive:Int()
-	
-		Return _live.Length
+		InternalDiscard()
 	End
 	
 	Protected
 	
-	#rem monkeydoc Called when resource is discarded.
+	#rem monkeydoc The OnDiscard method.
+	
+	This is where subclasses should place their actual discard code.
+	
+	This method will be invoked the first time Resource.Discard() is invoked.
+	
+	This method will only ever be invoked at most once during the lifetime of a resource.
+	
 	#end
-	Method OnDiscard() Virtual
+	Method OnDiscard() Override
 	End
 	
-	Private
+	#rem monkeydoc The OnFinalize method.
 	
-	Global _live:=New Stack<Resource>
+	This method will be invoked when a resource object's memory is about to be reclaimed and if the resource's Discard() method has
+	never been called during the lifetime of the object.
 	
-	Field _refs:Int
+	This method is intended to be used for the 'last chance' cleanup of criticial OS resources, such as file handles, texture objects etc.
 	
-	Field _depends:Stack<Resource>
+	***** WARNING *****
+	
+	Code inside this method executes at a critical point in the garbage collection process, and should be kept short and sweet.
+	
+	Code inside OnFinalize MUST obey the following rules:
+	
+	* Code MUST NOT read or write any fields of Self containing objects, arrays, or function pointers as there is no guarantee that such fields
+	 are still valid when the finalizer executes.
+	
+	* Code MUST NOT assign Self to any variable.
+	
+	Failure to follow these rules *will* lead to eventual disaster!
+	
+	#end
+	Method OnFinalize() Override
+	End
+	
 End
 
+#rem monkeydoc @hidden
+#end
 Class ResourceManager Extends Resource
 
 	Method New()
-		If Not _managers
-			_managers=New Stack<ResourceManager>
-		Endif
-		_managers.Push( Self )
-	End
-	
-	Function DebugDeps( r:Resource,indent:String )
-	
-		If Not r._depends Return
-	
-		indent+="  "
-		For Local d:=Eachin r._depends
-			Print indent+String.FromCString( d.typeName() )+", refs="+d._refs
-			DebugDeps( d,indent )
-		Next
-		indent=indent.Slice( 0,-2 )
-		
-	End
-	
-	Function DebugAll()
-	
-		For Local manager:=Eachin _managers
-		
-			For Local it:=Eachin manager._retained
-			
-				Print it.Key+", refs="+it.Value._refs
-				DebugDeps( it.Value,"" )
 
-			Next
-		Next
-		
-		For Local r:=Eachin _live
-			'If Not r._slug Print String.FromCString( r.typeName() )+", ref="+r._refs+", slug="+r._slug
-		End
+		_managers.Push( Self )
 	End
 	
 	Method OpenResource:Resource( slug:String )
@@ -189,6 +106,7 @@ Class ResourceManager Extends Resource
 		For Local manager:=Eachin _managers
 		
 			Local r:=manager._retained[slug]
+
 			If Not r Continue
 			
 			If manager<>Self AddResource( slug,r )
@@ -200,15 +118,10 @@ Class ResourceManager Extends Resource
 	End
 	
 	Method AddResource( slug:String,r:Resource )
-		If Not r Return
-		
-		DebugAssert( Not r.Discarded,"Can't add discarded resource to resource manager" )
 
-		If _retained.Contains( slug ) Return
+		If Not r Or _retained.Contains( slug ) Return
 		
 		_retained[slug]=r
-		
-		AddDependancy( r )
 	End
 	
 	Protected
@@ -216,14 +129,23 @@ Class ResourceManager Extends Resource
 	Method OnDiscard() Override
 	
 		_managers.Remove( Self )
-	
+		
 		_retained=Null
 	End
 	
 	Private
 	
-	Global _managers:Stack<ResourceManager>
+	Global _managers:=New Stack<ResourceManager>
 	
 	Field _retained:=New StringMap<Resource>
+End
 
+#rem monkeydoc Safely discards a resource.
+
+Invoke [[Resource.Discard]] on the given resource `r` only if `r` is non-null.
+
+#end
+Function SafeDiscard( r:Resource )
+	
+	If r r.Discard()
 End

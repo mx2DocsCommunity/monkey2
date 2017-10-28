@@ -10,7 +10,8 @@ Class Value Extends SNode
 	Field flags:Int
 	
 	Method ToString:String() Override
-		Return "????? VALUE ????? "+String.FromCString( typeName() )
+'		Return "????? VALUE ????? "+String.FromCString( typeName() )
+		Return "????? VALUE ????? "
 	End
 	
 	Method ToValue:Value( instance:Value ) Override
@@ -70,23 +71,47 @@ Class Value Extends SNode
 		Return New AssignStmt( pnode,op,Self,value.UpCast( rtype ) )
 	End
 	
+	Method Compare:Value( op:String,rhs:Value )
+		
+		Local rvalue:=ToRValue()
+		rhs=rhs.ToRValue()
+		
+		If Not type.Equals( rhs.type ) SemantError( "Value.Compare" )
+			
+		Local ctype:=TCast<ClassType>( rvalue.type )
+		
+		If ctype And ctype.IsStruct
+			Local node:=rvalue.FindValue( op )
+			If node
+				Return node.Invoke( New Value[]( rhs ) )
+			Endif
+			node=rvalue.FindValue( "<=>" )
+			If node
+				Local cmp:=node.Invoke( New Value[]( rhs ) )
+				Return New BinaryopValue( Type.BoolType,op,cmp,LiteralValue.NullValue( cmp.type ) )
+			Endif
+		Endif
+		
+		Return New BinaryopValue( Type.BoolType,op,rvalue,rhs )
+	End
+	
 	Method CheckAccess( tscope:Scope ) Virtual
 	End
 	
 	Function CheckAccess( decl:Decl,scope:Scope,tscope:Scope )
 	
+		If decl.IsInternal
+			If scope.FindFile().fdecl.module=tscope.FindFile().fdecl.module Return
+
+			Throw New SemantEx( "Internal declaration '"+decl.ident+"' cannot be accessed from here." )
+		Endif
+			
 		If decl.IsPublic Return
-		
+
 		Local cscope:=Cast<ClassScope>( scope )
 		If cscope
-		
+			
 			If scope.FindFile()=tscope.FindFile() Return
-
-			If decl.IsInternal
-				If scope.FindFile().fdecl.module=tscope.FindFile().fdecl.module Return
-
-				Throw New SemantEx( "Internal member '"+decl.ident+"' cannot be accessed from different module" )
-			Endif
 
 			Local ctype:=cscope.ctype
 			Local ctype2:=tscope.FindClass()
@@ -95,7 +120,7 @@ Class Value Extends SNode
 			
 				If ctype=ctype2 Return
 				
-				Throw New SemantEx( "Private member '"+decl.ident+"' cannot be accessed from here" )
+				Throw New SemantEx( "Private member '"+decl.ident+"' cannot be accessed from here." )
 				
 			Else If decl.IsProtected
 			
@@ -104,7 +129,8 @@ Class Value Extends SNode
 					ctype2=ctype2.superType
 				Wend
 				
-				Throw New SemantEx( "Protected member '"+decl.ident+"' cannot be accessed from here" )
+				Throw New SemantEx( "Protected member '"+decl.ident+"' cannot be accessed from here." )
+
 			Endif
 
 		Endif
@@ -145,6 +171,7 @@ Class UpCastValue Extends Value
 	Method New( type:Type,value:Value )
 		Self.type=type
 		Self.value=value
+
 	End
 	
 	Method ToString:String() Override
@@ -231,6 +258,20 @@ Class LiteralValue Extends Value
 	
 	Method New( type:Type,value:String )
 		Self.type=type
+		
+		Local ptype:=TCast<PrimType>( type )
+		If ptype And ptype.IsNumeric
+			If ptype.IsSignedIntegral
+				value=String( Cast<Long>( value ) )
+			Else If ptype.IsUnsignedIntegral
+				value=String( Cast<ULong>( value ) )
+			Else If ptype.IsReal
+				value=String( Cast<Double>( value ) )
+			Else
+				SemantError( "LiteralValue.New() type="+ptype.ToString() )
+			End
+		Endif
+
 		Self.value=value
 	End
 	
@@ -248,11 +289,9 @@ Class LiteralValue Extends Value
 		'upcast to...
 		Local ptype:=TCast<PrimType>( type )
 		If Not ptype Return New UpCastValue( type,Self )
-'		If Not ptype SemantError( "LiteralValue.UpCast()" )
 		
 		Local ptype2:=TCast<PrimType>( Self.type )
 		If Not ptype2 Return New UpCastValue( type,Self )
-'		If Not ptype2 SemantError( "LiteralValue.UpCast()" )
 		
 		Local result:=""
 		
@@ -312,7 +351,11 @@ Class LiteralValue Extends Value
 
 	Function IntValue:LiteralValue( value:Int )
 		Return New LiteralValue( Type.IntType,String( value ) )
-	End	
+	End
+	
+	Function NullValue:LiteralValue( type:Type )
+		Return New LiteralValue( type,"" )
+	end
 End
 
 Class NullValue Extends Value
@@ -586,6 +629,10 @@ Class IfThenElseValue Extends Value
 		Self.value=value
 		Self.thenValue=thenValue
 		Self.elseValue=elseValue
+	End
+	
+	Property HasSideEffects:Bool() Override
+		Return thenValue.HasSideEffects Or elseValue.HasSideEffects
 	End
 
 End

@@ -5,9 +5,26 @@
 Using libc..
 Using std..
 
-Const MX2CC_VERSION:="1.1.04"
+Const MX2CC_VERSION:="1.1.08"
 
-Const OUTPUT:="Monkey2-v"+MX2CC_VERSION
+Const RELEASE_SUFFIX:=""
+
+Const OUTPUT:="Monkey2-v"+MX2CC_VERSION+RELEASE_SUFFIX
+
+Const IGNORE:="
+.gitignore
+src/c2mx2
+src/createrelease
+modules/admob
+modules/iap
+modules/win32
+modules/linq
+modules/gles30
+bin/ted2.state.json
+bin/ted2_windows/state.json
+bin/ted2_macos.app/Contents/MacOS/state.json
+bin/ted2_linux/state.json
+"
 
 Global desktop:String
 Global output:String
@@ -26,8 +43,10 @@ Function CopyFiles( dir:String )
 	CreateDir( output+"/"+dir )
 	
 	For Local file:=Eachin LoadDir( dir )
+
+		Local src:=dir+"/"+file
 		
-		If file=".gitignore" continue
+		If IGNORE.Contains( "~n"+src+"~n" ) Continue
 		
 		If file.Contains( "_raspbian" ) Continue
 
@@ -41,35 +60,32 @@ Function CopyFiles( dir:String )
 		If file.Contains( "_windows" ) Continue
 		If file.Contains( "_macos" ) Continue
 #Endif
-			
-		Local src:=dir+"/"+file
 		
 		Select GetFileType( src )
 		Case FileType.Directory
-		
-			If dir.StartsWith( "modules/" )
 			
-				If file.Contains( ".buildv" ) And Not file.EndsWith( ".buildv"+MX2CC_VERSION ) Continue
-	
-				If dir.Contains( ".buildv" )
-					If file.StartsWith( "emscripten_" ) Continue
-					If file.StartsWith( "android_" ) Continue
-					If file.StartsWith( "ios_" ) Continue
-					If file="build" Continue
-					If file="src" Continue
-				Endif
-			
-			Else If file.Contains( ".buildv" ) Or file.EndsWith( ".products" )
-			
+			If file.EndsWith( ".products" )
+				
 				Continue
+			
+			Else If file.Contains( ".buildv" )
+				
+				If ExtractDir( dir )<>"modules/" Or Not file.EndsWith( ".buildv"+MX2CC_VERSION ) Continue
+				
+			Else If dir.Contains( ".buildv" )
+				
+				If file.StartsWith( "emscripten_" ) Continue
+				If file.StartsWith( "android_" ) Continue
+				If file.StartsWith( "ios_" ) Continue
+				If file.EndsWith( "_msvc" )  Continue
+				If file="build" Continue
+				If file="src" Continue
 			
 			Endif
 			
 			CopyFiles( src )
 		
 		Case FileType.File
-		
-			If file="ted2.state.json" Continue
 		
 			Local dst:=output+"/"+dir+"/"+file
 			
@@ -84,20 +100,22 @@ Function CopyRelease()
 	CreateDir( output )
 	
 	CreateDir( output+"/devtools" )
+	CreateDir( output+"/tmp" )
 	
+	CopyFiles( "bananas" )
 	CopyFiles( "bin" )
 	CopyFiles( "docs" )
 	CopyFiles( "modules" )
-	CopyFiles( "bananas" )
 	CopyFiles( "products" )
+	CopyFiles( "scripts" )
 	CopyFiles( "src" )
 	
-	Copy( "hello-world.monkey2" )
+	Copy( "ABOUT.HTML" )
+	Copy( "VERSIONS.TXT" )
 	Copy( "LICENSE.TXT" )
 	Copy( "README.TXT" )
-	Copy( "TODO.TXT" )
 	
-#if __TARGET__="windows"
+#If __TARGET__="windows"
 	Copy( "Monkey2 (Windows).exe" )
 #Else if __TARGET__="macos"
 	CopyFiles( "Monkey2 (Macos).app" )
@@ -105,14 +123,6 @@ Function CopyRelease()
 	Copy( "Monkey2 (Linux)" )
 #Endif
 
-	DeleteDir( output+"/src/c2mx2",True )
-	DeleteDir( output+"/src/mx23d",True )
-	
-	DeleteDir( output+"/modules/admob",True )
-	DeleteDir( output+"/modules/linq",True )
-	DeleteDir( output+"/modules/bullet",True )
-	DeleteDir( output+"/modules/gles30",True )
-	
 End
 
 Function MakeInno()

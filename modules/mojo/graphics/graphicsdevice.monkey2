@@ -110,6 +110,7 @@ Class GraphicsDevice
 		Return _viewport
 	
 	Setter( viewport:Recti )
+		If viewport=_viewport Return
 	
 		FlushTarget()
 	
@@ -123,6 +124,7 @@ Class GraphicsDevice
 		Return _scissor
 	
 	Setter( scissor:Recti )
+		If scissor=_scissor Return
 	
 		FlushTarget()
 	
@@ -136,6 +138,7 @@ Class GraphicsDevice
 		Return _colorMask
 		
 	Setter( colorMask:ColorMask )
+		If colorMask=_colorMask Return
 	
 		_colorMask=colorMask
 		
@@ -147,6 +150,7 @@ Class GraphicsDevice
 		Return _depthMask
 	
 	Setter( depthMask:Bool )
+		If depthMask=_depthMask Return
 		
 		_depthMask=depthMask
 		
@@ -158,6 +162,7 @@ Class GraphicsDevice
 		Return _depthFunc
 	
 	Setter( depthFunc:DepthFunc )
+		If depthFunc=_depthFunc Return
 		
 		_depthFunc=depthFunc
 		
@@ -169,6 +174,7 @@ Class GraphicsDevice
 		Return _blendMode
 	
 	Setter( blendMode:BlendMode )
+		If blendMode=_blendMode Return
 	
 		_blendMode=blendMode
 		
@@ -180,6 +186,7 @@ Class GraphicsDevice
 		Return _cullMode
 	
 	Setter( cullMode:CullMode )
+		If cullMode=_cullMode Return
 		
 		_cullMode=cullMode
 		
@@ -191,6 +198,7 @@ Class GraphicsDevice
 		Return _retroMode
 	
 	Setter( retroMode:Bool )
+		If retroMode=_retroMode Return
 		
 		_retroMode=retroMode
 		
@@ -202,6 +210,7 @@ Class GraphicsDevice
 		Return _vertexBuffer
 		
 	Setter( vbuffer:VertexBuffer )
+		If vbuffer=_vertexBuffer Return
 	
 		_vertexBuffer=vbuffer
 		
@@ -213,6 +222,7 @@ Class GraphicsDevice
 		Return _indexBuffer
 		
 	Setter( ibuffer:IndexBuffer )
+		If ibuffer=_indexBuffer Return
 	
 		_indexBuffer=ibuffer
 		
@@ -224,6 +234,7 @@ Class GraphicsDevice
 		Return _rpass
 		
 	Setter( rpass:Int )
+		If rpass=_rpass Return
 	
 		_rpass=rpass
 		
@@ -235,6 +246,7 @@ Class GraphicsDevice
 		Return _shader
 
 	Setter( shader:Shader )
+		If shader=_shader Return
 	
 		_shader=shader
 		
@@ -264,7 +276,7 @@ Class GraphicsDevice
 		Return pixmap
 	End
 
-	Method Clear( color:Color,depth:Float=1 )',clearColor:Bool=True,clearDepth:Bool=True )
+	Method Clear( color:Color,depth:Float=1 )
 		
 		Validate()
 		
@@ -396,7 +408,7 @@ Class GraphicsDevice
 	Field _retroMode:Bool
 	Field _vertexBuffer:VertexBuffer
 	Field _indexBuffer:IndexBuffer
-	Field _ublocks:=New UniformBlock[4]
+	Field _ublocks:=New UniformBlock[8]
 	Field _shader:Shader
 	Field _rpass:Int
 	
@@ -417,13 +429,18 @@ Class GraphicsDevice
 	Function InitGL()
 
 		glCheck()
-			
-		InitGLexts()
 		
 		glGetIntegerv( GL_FRAMEBUFFER_BINDING,Varptr _defaultFbo )
 		
 		If GL_draw_buffer glGetIntegerv( GL_DRAW_BUFFER,Varptr _defaultDrawBuf )
 		If GL_read_buffer glGetIntegerv( GL_READ_BUFFER,Varptr _defaultReadBuf )
+			
+		if GL_seamless_cube_map glEnable( GL_TEXTURE_CUBE_MAP_SEAMLESS )
+		
+#If __TARGET__="macos" or __TARGET__="linux"
+		glEnable( $8861 )	'GL_POINT_SPRITE
+		glEnable( $8642 )	'GL_PROGRAM_POINT_SIZE
+#Endif
 			
 		glCheck()
 	End
@@ -433,7 +450,10 @@ Class GraphicsDevice
 		_modified=False
 		If _rtarget And _rtarget.NumColorTextures
 			Validate()
-			_rtarget.GetColorTexture(0).Modified( _viewport & _scissor )
+			For Local i:=0 Until _rtarget.NumColorTextures
+				Local texture:=_rtarget.GetColorTexture( i )
+				texture.Modified( _viewport & _scissor )
+			Next
 		Endif
 	End
 	
@@ -467,6 +487,7 @@ Class GraphicsDevice
 				If GL_read_buffer glReadBuffer( _defaultReadBuf )
 				
 			Endif
+			
 
 		Endif
 	

@@ -1,9 +1,12 @@
 
-Global c:C
 
-Class C
+Class VertexFormat
+	
+	Property Pitch:Int() Virtual
+		Return 0
+	End
+
+	Method UpdateGLAttribs() Virtual
+	End
 End
 
-Function F( c:C )
-	Print "F()!"
-End

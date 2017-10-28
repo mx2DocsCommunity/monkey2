@@ -9,6 +9,10 @@ Public
 
 #rem monkeydoc @hidden
 #end
+Global glDebug:Bool=False
+
+#rem monkeydoc @hidden
+#end
 Global glGraphicsSeq:Int=1
 
 #rem monkeydoc @hidden
@@ -28,9 +32,29 @@ End
 #rem monkeydoc @hidden
 #end
 Function glCheck()
+	
+	If Not glDebug Return
+	
 	Local err:=glGetError()
 	If err=GL_NO_ERROR Return
-	RuntimeError( "GL ERROR! err="+err )
+	
+	Local msg:=""
+	Select err
+	Case GL_INVALID_ENUM
+		msg="INVALID_ENUM"
+	Case GL_INVALID_VALUE
+		msg="INVALID_VALUE"
+	Case GL_INVALID_OPERATION
+		msg="INVALID_OPERATION"
+	Case GL_INVALID_FRAMEBUFFER_OPERATION
+		msg="INVALID_FRAMEBUFFER_OPERATION"
+	Case GL_OUT_OF_MEMORY
+		msg="OUT_OF_MEMORY"
+	Default
+		msg="?????"
+	End
+	
+	RuntimeError( "GL ERROR: "+msg+" "+err )
 End
 
 #rem monkeydoc @hidden
@@ -112,7 +136,7 @@ End
 #end
 Function glCompile:Int( type:Int,source:String )
 	
-	#If __TARGET__="windows" Or __MOBILE_TARGET__ Or __WEB_TARGET__
+#If __TARGET__="windows" Or __MOBILE_TARGET__ Or __WEB_TARGET__
 
 		Const prefix:="
 #ifdef GL_ES
@@ -126,7 +150,15 @@ precision mediump float;
 		source=prefix+source
 		
 		If glexts.GL_draw_buffers source="#extension GL_EXT_draw_buffers : require~n"+source
-	#endif
+			
+#ElseIf __TARGET__="macos" or __TARGET__="linux"
+	
+		Const prefix:="
+#version 120
+"
+		source=prefix+source
+		 
+#EndIf
 	
 	Local shader:=glCreateShader( type )
 	glShaderSourceEx( shader,source )

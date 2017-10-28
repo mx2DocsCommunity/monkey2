@@ -25,6 +25,35 @@ Function stbi_eof:Int( user:Void Ptr )
 	Return stream.Eof
 End
 
+#rem monkeydoc @hidden
+#end
+Class StbPixmap Extends Pixmap
+	
+	Method New( width:Int,height:Int,format:PixelFormat,data:UByte Ptr,pitch:Int )
+		Super.New( width,height,format,data,pitch )
+		
+		_data=data
+	End
+	
+	Private
+	
+	Field _data:UByte Ptr
+	
+	Method OnDiscard() Override
+		
+		Super.OnDiscard()
+		
+		stbi_image_free( _data )
+		
+		_data=Null
+	End
+	
+	Method OnFinalize() Override
+		
+	 	stbi_image_free( _data )
+	End
+End
+
 Public
 
 #rem monkeydoc @hidden
@@ -62,12 +91,7 @@ Function LoadPixmap:Pixmap( path:String,format:PixelFormat )
 		End
 	End
 	
-	Local pixmap:=New Pixmap( x,y,format,data,x*PixelFormatDepth( format ) )
-	
-	pixmap.OnDiscarded+=Lambda()
-		stbi_image_free( data )
-	End
+	Local pixmap:=New StbPixmap( x,y,format,data,x*PixelFormatDepth( format ) )
 	
 	Return pixmap
-
 End

@@ -88,8 +88,10 @@ Class AppInstance
 		If Not config config=New StringMap<String>
 	
 		_config=config
-
+		
 		SDL_Init( SDL_INIT_VIDEO|SDL_INIT_JOYSTICK )
+		
+		SDL_SetHint( "SDL_MOUSE_FOCUS_CLICKTHROUGH","1" )
 
 		'possible fix for linux crashing at exit (can't reproduce myself).
 		'		
@@ -179,6 +181,12 @@ Class AppInstance
 			
 			UpdateWindows()
 		End
+
+#if __DESKTOP_TARGET__ 
+		SDL_AddEventWatch( _EventFilter,Null )
+#Endif
+		RequestRender()
+	
 	End
 	
 	#rem monkeydoc Fallback font.
@@ -417,7 +425,7 @@ Class AppInstance
 	#rem monkeydoc @hidden
 	#end
 	Method EndModal()
-	
+		
 		_modalView=_modalStack.Pop()
 		
 		RequestRender()
@@ -436,15 +444,22 @@ Class AppInstance
 	
 		_requestRender=True
 	End
+	
+	#rem monkeydoc @hidden
+	#end
+	Property Renderable:Bool()
+		
+		Return _activeWindow And Not _activeWindow.Minimized And Not _renderingSuspended
+	End
 
 	#rem monkeydoc @hidden
 	#end
 	Method MainLoop()
-	
-		If Not _requestRender
+		
+		If Not _requestRender Or Not Renderable
 
 			SDL_WaitEvent( Null )
-			
+
 		Endif
 		
 		UpdateEvents()
@@ -475,12 +490,12 @@ Class AppInstance
 	#rem monkeydoc @hidden
 	#end	
 	Method UpdateWindows()
-	
-		If _frozen Return
-	
+		
+		if Not Renderable Return
+		
 		Local render:=_requestRender
 		_requestRender=False
-		
+
 		If render UpdateFPS()
 		
 		For Local window:=Eachin Window.VisibleWindows()
@@ -505,11 +520,23 @@ Class AppInstance
 		
 	End
 	
+	#rem monkeydoc Resets polled mouse and keyboard devices.
+	
+	Clears the keyboard character queue and clears the pressed and released states for all keys and mouse buttons.
+	
+	#end
+	Method ResetPolledInput()
+		
+		Keyboard.Reset()
+		
+		Mouse.Reset()
+	End
+	
 	#rem monkeydoc @hidden
 	#end
 	Function EmscriptenMainLoop()
 
-		App._requestRender=True
+		App.RequestRender()
 		
 		App.MainLoop()
 	End
@@ -517,14 +544,7 @@ Class AppInstance
 	#rem monkeydoc Run the app.
 	#end
 	Method Run()
-	
-#if __DESKTOP_TARGET__ 
-	
-		SDL_AddEventWatch( _EventFilter,Null )
 
-#endif
-		RequestRender()
-		
 #If __TARGET__="emscripten"
 
 		emscripten_set_main_loop( EmscriptenMainLoop,0,1 )
@@ -537,6 +557,50 @@ Class AppInstance
 		Forever
 #Endif
 	
+	End
+
+	#rem monkeydoc @hidden
+	#end
+	Method SuspendRendering()
+		
+		_renderingSuspended+=1
+	end
+	
+	#rem monkeydoc @hidden
+	#end
+	Method ResumeRendering()
+		
+		_renderingSuspended=Max( _renderingSuspended-1,0 )
+	End
+
+	Internal
+	
+	Method DispatchEvents()
+		
+		Local event:SDL_Event
+
+		While SDL_PollEvent( Varptr event )
+		
+			DispatchEvent( Varptr event )
+			
+		Wend
+		
+	End
+	
+	Method UpdateEvents()
+	
+		Keyboard.Update()
+		
+		Mouse.Update()
+		
+		Touch.Update()
+		
+		DispatchEvents()
+		
+		Local idle:=Idle
+		Idle=Null
+		idle()
+		
 	End
 
 	Private
@@ -552,9 +616,9 @@ Class AppInstance
 
 	Field _active:Bool
 	Field _activeWindow:Window
-
-	Field _frozen:Bool
 	
+	Field _renderingSuspended:int
+
 	Field _keyView:View
 	Field _hoverView:View
 	Field _mouseView:View
@@ -565,6 +629,7 @@ Class AppInstance
 	Field _fpsMillis:Int
 
 	Field _window:Window
+	Field _keyDownView:View
 	Field _key:Key
 	Field _rawKey:Key
 	Field _keyChar:String
@@ -594,39 +659,24 @@ Class AppInstance
 
 	End
 	
-	Method UpdateEvents()
-	
-		Keyboard.Update()
-		
-		Mouse.Update()
-		
-		Touch.Update()
-		
-		Local event:SDL_Event
-
-		While SDL_PollEvent( Varptr event )
-		
-			DispatchEvent( Varptr event )
-			
-		Wend
-		
-		Local idle:=Idle
-		Idle=Null
-		idle()
-		
-	End
-	
 	Method SendKeyEvent( type:EventType )
 	
 		Local view:=KeyView
+		
+		Select type
+		Case EventType.KeyDown
+			_keyDownView=view
+		Case EventType.KeyUp
+			If view<>_keyDownView Return
+		End
 		
 		Local event:=New KeyEvent( type,view,_key,_rawKey,_modifiers,_keyChar )
 		
 		KeyEventFilter( event )
 		
-		If event.Eaten Return
+		If event.Eaten Or Not view Return
 		
-		If view view.SendKeyEvent( event )
+		view.SendKeyEvent( event )
 	End
 	
 	Method SendMouseEvent( type:EventType,view:View )
@@ -747,7 +797,7 @@ Class AppInstance
 			SendKeyEvent( EventType.KeyChar )
 			
 		Case SDL_MOUSEBUTTONDOWN
-		
+			
 			Local mevent:=Cast<SDL_MouseButtonEvent Ptr>( event )
 			
 			_window=Window.WindowForID( mevent->windowID )
@@ -785,7 +835,7 @@ Class AppInstance
 			Endif
 		
 		Case SDL_MOUSEBUTTONUP
-		
+			
 			Local mevent:=Cast<SDL_MouseButtonEvent Ptr>( event )
 			
 			_window=Window.WindowForID( mevent->windowID )
@@ -926,7 +976,7 @@ Class AppInstance
 				
 			Case SDL_WINDOWEVENT_FOCUS_GAINED
 			
-				Print "SDL_WINDOWEVENT_FOCUS_GAINED"
+'				Print "SDL_WINDOWEVENT_FOCUS_GAINED"
 			
 				Local active:=_active
 				_activeWindow=_window
@@ -938,7 +988,7 @@ Class AppInstance
 				
 			Case SDL_WINDOWEVENT_FOCUS_LOST
 			
-				Print "SDL_WINDOWEVENT_FOCUS_LOST"
+'				Print "SDL_WINDOWEVENT_FOCUS_LOST"
 			
 				Local active:=_active
 				_active=False
@@ -968,7 +1018,7 @@ Class AppInstance
 					SendMouseEvent( EventType.MouseLeave,_hoverView )
 					_hoverView=Null
 				Endif
-				
+
 			End
 			
 		Case SDL_USEREVENT
@@ -991,13 +1041,13 @@ Class AppInstance
 
 		Case SDL_RENDER_TARGETS_RESET
 		
-			Print "SDL_RENDER_TARGETS_RESET"
+			'Print "SDL_RENDER_TARGETS_RESET"
 		
 			RequestRender()
 			
 		Case SDL_RENDER_DEVICE_RESET
 		
-			Print "SDL_RENDER_DEVICE_RESET"
+			'Print "SDL_RENDER_DEVICE_RESET"
 		
 			mojo.graphics.glutil.glGraphicsSeq+=1
 
@@ -1014,8 +1064,10 @@ Class AppInstance
 		Case SDL_APP_WILLENTERBACKGROUND
 			'Prepare your app to go into the background. Stop loops, etc.
 			'This gets called when the user hits the home button, or gets a call.
-			Print "SDL_APP_WILLENTERBACKGROUND"
-			_frozen=True
+
+			'Print "SDL_APP_WILLENTERBACKGROUND"
+		
+			SuspendRendering()
 
 		Case SDL_APP_DIDENTERBACKGROUND
 			'This will get called if the user accepted whatever sent your app to the background.
@@ -1030,9 +1082,12 @@ Class AppInstance
 		Case SDL_APP_DIDENTERFOREGROUND
 			'Restart your loops here.
 			'Your app is interactive and getting CPU again.
-			Print "SDL_APP_DIDENTERFOREGROUND"
+
+			'Print "SDL_APP_DIDENTERFOREGROUND"
+
+			ResumeRendering()
+
 			RequestRender()
-			_frozen=False
 #Endif
      
 		End
@@ -1058,6 +1113,8 @@ Class AppInstance
 			
 			Case SDL_WINDOWEVENT_MOVED
 			
+'				Print "SDL_WINDOWEVENT_MOVED"
+			
 				SdlEventFilter( event )
 	
 				SendWindowEvent( EventType.WindowMoved )
@@ -1065,6 +1122,8 @@ Class AppInstance
 				Return 0
 					
 			Case SDL_WINDOWEVENT_RESIZED
+				
+'				Print "SDL_WINDOWEVENT_RESIZED"
 			
 				SdlEventFilter( event )
 	
@@ -1073,7 +1132,6 @@ Class AppInstance
 				UpdateWindows()
 			
 				Return 0
-
 			End
 
 		End

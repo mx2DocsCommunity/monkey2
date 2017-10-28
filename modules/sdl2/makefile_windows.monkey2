@@ -1,11 +1,15 @@
 
 Namespace sdl2
 
+
+
 #import "<libdsound.a>"
 #import "<libxinput.a>"
-#import "<libdinput.a>"
+#import "<libdinput8.a>"
 
+#import "<libadvapi32.a>"
 #import "<libole32.a>"
+#Import "<libshell32.a>"
 #import "<liboleaut32.a>"
 #import "<libimm32.a>"
 #import "<libwinmm.a>"
