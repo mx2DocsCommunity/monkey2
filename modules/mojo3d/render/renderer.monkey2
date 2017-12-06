@@ -54,45 +54,44 @@ Class Renderer
 		_psmSize=size
 	End
 	
-	Function SetCurrent( renderer:Renderer )
+'	Function SetCurrent( renderer:Renderer )
 		
-		DebugAssert( Not _current,"Renderer.Current already set" )
+'		DebugAssert( Not _current,"Renderer.Current already set" )
 		
-		_current=renderer
-	End
+'		_current=renderer
+'	End
 	
 	#rem monkeydoc Gets the current renderer.
 	
-	The config setting "MOJO3D_DEFAULT_RENDERER" can be used to override the default renderer created. It should be set to "deferred" or "forward".
+	The config setting "MOJO3D\_DEFAULT\_RENDERER" can be used to override the default renderer created. It should be set to "deferred" or "forward".
 
 	Config settings may be changed using the [[std::std.filesystem.SetConfig|SetConfig]] function.
 	
 	#end
 	Function GetCurrent:Renderer()
 		
-		If _current Return _current
-		
-		Select( GetConfig( "MOJO3D_DEFAULT_RENDERER" ) )
-		Case "deferred"
-			_current=New DeferredRenderer
-		Case "forward"
-			_current=New ForwardRenderer
-		Default
-#If Not __MOBILE_TARGET__					
-			_current=New DeferredRenderer
-#else
-			_current=New ForwardRenderer
-#Endif
-		End
+		If Not _current
+			
+			Select( GetConfig( "MOJO3D_DEFAULT_RENDERER" ) )
+			Case "deferred"
+				_current=New DeferredRenderer
+			Case "forward"
+				_current=New ForwardRenderer
+			Default
+	#If Not __MOBILE_TARGET__					
+				_current=New DeferredRenderer
+	#else
+				_current=New ForwardRenderer
+	#Endif
+			End
+		Endif
 		
 		Return _current
 	End
 	
-	Internal
-
-	#rem monkeydoc @hidden
+	#rem monkeydoc @hidden DON'T USE! WILL CHANGE!
 	#end
-	Method Render( scene:Scene,camera:Camera,device:GraphicsDevice )
+	Method Render( scene:Scene,camera:Camera,device:GraphicsDevice ) Virtual
 
 		'***** validate stuff *****
 			
@@ -106,7 +105,7 @@ Class Renderer
 		
 		_csmSplitDepths[0]=camera.Near
 		For Local i:=1 Until 5
-			_csmSplitDepths[i]=_csmSplitDepths[i-1]+_csmSplits[i-1]
+			_csmSplitDepths[i]=Min( _csmSplitDepths[i-1]+_csmSplits[i-1],camera.Far )
 		Next
 		
 		Local time:=Float( Now() )
@@ -189,7 +188,7 @@ Class Renderer
 		_renderCamera=Null
 		
 		_renderScene=Null
-	End
+	End	
 	
 	Property ShaderDefs:String()
 		
@@ -202,6 +201,11 @@ Class Renderer
 	End
 	
 	Method OnRender( scene:Scene,camera:Camera,device:GraphicsDevice ) Virtual
+	End
+	
+	Method New()
+		
+		_current=Self
 	End
 	
 	Method Init( linearOutput:Bool )
