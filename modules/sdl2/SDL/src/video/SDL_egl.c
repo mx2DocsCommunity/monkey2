@@ -279,11 +279,10 @@ SDL_EGL_LoadLibrary(_THIS, const char *egl_path, NativeDisplayType native_displa
     
 #if !defined(__WINRT__)
 
-	int force_gl=0;
+	/*
+	#if SDL_VIDEO_DRIVER_WINDOWS
 	
 	EGLint angleType=0;
-	
-	#if SDL_VIDEO_DRIVER_WINDOWS
 	
 	const char *p=SDL_getenv( "SDL_ANGLE_RENDERER" );
 	if( p ){
@@ -297,6 +296,8 @@ SDL_EGL_LoadLibrary(_THIS, const char *egl_path, NativeDisplayType native_displa
 			angleType=EGL_PLATFORM_ANGLE_TYPE_D3D9_ANGLE;
 		}
 	}
+	
+	angleType=0;
 	
 	if( angleType ){
 	
@@ -320,6 +321,7 @@ SDL_EGL_LoadLibrary(_THIS, const char *egl_path, NativeDisplayType native_displa
 		
 		    _this->egl_data->egl_display = _this->egl_data->eglGetDisplay(native_display);
 		}
+		
 	}else{
 
 	    _this->egl_data->egl_display = _this->egl_data->eglGetDisplay(native_display);
@@ -329,6 +331,9 @@ SDL_EGL_LoadLibrary(_THIS, const char *egl_path, NativeDisplayType native_displa
     _this->egl_data->egl_display = _this->egl_data->eglGetDisplay(native_display);
     
 	#endif
+	*/
+    
+    _this->egl_data->egl_display = _this->egl_data->eglGetDisplay(native_display);
     
     if (!_this->egl_data->egl_display) {
         return SDL_SetError("Could not get EGL display");
