@@ -4,7 +4,6 @@
 
 #include "bbstd.h"
 #include "bbtypes.h"
-#include "bbmemory.h"
 #include "bbfunction.h"
 
 #ifndef NDEBUG
@@ -61,7 +60,7 @@ namespace bbGC{
 
 	void collect();
 
-	bbGCNode *alloc( size_t size );
+//	bbGCNode *alloc( size_t size );
 }
 
 struct bbGCNode{
@@ -204,6 +203,8 @@ namespace bbGC{
 	inline void beginCtor( bbGCNode *p ){
 		p->succ=currentFiber->ctoring;
 		currentFiber->ctoring=p;
+		p->state=0;
+		p->flags=0;
 	}
 	
 	inline void endCtor( bbGCNode *p ){

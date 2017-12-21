@@ -1,4 +1,3 @@
-
 #include "bbgc.h"
 
 namespace bbDB{
@@ -243,20 +242,10 @@ namespace bbGC{
 	
 	void *malloc( size_t size ){
 	
-		size=(size+sizeof(size_t)+7)&~7;
+		size=(size+8+7) & ~7;
 		
 		memused+=size;
 		
-		/*
-		if( size<256 && pools[size>>3] ){
-			void *p=pools[size>>3];
-			pools[size>>3]=*(void**)p;
-			allocedBytes+=size;
-			size_t *q=(size_t*)p;
-			*q++=size;
-			return q;
-		}
-		*/
 		
 		if( !suspended ){
 
@@ -303,6 +292,7 @@ namespace bbGC{
 		
 		allocedBytes+=size;
 		size_t *q=(size_t*)p;
+		if( sizeof(size_t)==4 ) ++q;
 		*q++=size;
 
 		return q;
@@ -319,9 +309,9 @@ namespace bbGC{
 	
 		if( !p ) return;
 		
-		size_t *q=(size_t*)p-1;
-		
-		size_t size=*q;
+		size_t *q=(size_t*)p;
+		size_t size=*--q;
+		if( sizeof(size_t)==4 ) --q;
 		
 		#ifndef NDEBUG
 		memset( q,0xa5,size );
@@ -337,7 +327,7 @@ namespace bbGC{
 			::free( q );
 		}
 	}
-
+/*
 	bbGCNode *alloc( size_t size ){
 
 		bbGCNode *p=(bbGCNode*)bbGC::malloc( size );
@@ -349,7 +339,7 @@ namespace bbGC{
 		
 		return p;
 	}
-	
+*/	
 	void collect(){
 	
 		if( !inited ) return;
