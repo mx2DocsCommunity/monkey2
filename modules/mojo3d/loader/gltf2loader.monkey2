@@ -5,9 +5,10 @@ Private
 
 Class Gltf2Loader
 	
-	Method New( asset:Gltf2Asset,dir:String )
+	Method New( asset:Gltf2Asset,bindata:DataBuffer,dir:String )
 		
 		_asset=asset
+		_bindata=bindata
 		_dir=dir
 	End
 	
@@ -72,8 +73,8 @@ Class Gltf2Loader
 	Field _dir:String
 	
 	Field _data:=New Map<Gltf2Buffer,DataBuffer>
-	
-'	Field _uridata:=New StringMap<DataBuffer>
+	Field _uridata:=New StringMap<DataBuffer>
+	Field _bindata:DataBuffer
 	
 	Field _textureCache:=New Map<Gltf2Texture,Texture>
 	Field _materialCache:=New Map<Gltf2Material,Material>
@@ -84,37 +85,38 @@ Class Gltf2Loader
 	
 	Field _bones:Model.Bone[]
 
-#rem
-	Method GetData:UByte Ptr( uri:String )
-		Local data:=_data[uri]
-		If Not data
-			data=DataBuffer.Load( _dir+uri )
-			_data[uri]=data
-		Endif
-		Return data.Data
-	End
-#end
-
 	Method GetData:UByte Ptr( buffer:Gltf2Buffer )
 		
 		If _data.Contains( buffer ) Return _data[buffer]?.Data
 		
-		Local data:DataBuffer
+		Local data:DataBuffer,uri:=buffer.uri
 		
-		Local uri:=buffer.uri
-		If uri.StartsWith( "data:" )
+		If Not uri
+			
+			data=_bindata
+		
+		Else If uri.StartsWith( "data:" )
+			
 			Local i:=uri.Find( ";base64," )
+			
 			If i<>-1
 				Local base64:=uri.Slice( i+8 )
 				data=DecodeBase64( base64 )
 			Else
 				Print "Can't decode data:"
 			Endif
+			
+		Else If _uridata.Contains( uri )
+			
+			data=_uridata[uri]
 		Else
+			
 			data=DataBuffer.Load( _dir+uri )
+			_uridata[uri]=data
 		Endif
 		
 		_data[buffer]=data
+		
 		Return data?.Data
 	End
 	
@@ -134,11 +136,27 @@ Class Gltf2Loader
 		
 		Local flags:=TextureFlags.Filter|TextureFlags.Mipmap|TextureFlags.WrapS|TextureFlags.WrapT
 		
-		Local tex:=Texture.Load( _dir+texture.source.uri,flags )
+		Local tex:Texture
 		
-'		Print "Opened texture:"+_dir+texture.source.uri
+		Local source:=texture.source
+		
+		If source.uri
+			
+			tex=Texture.Load( _dir+source.uri,flags )
+			
+		Else If source.bufferView
+			
+			Local start:=ULong( GetData( source.bufferView ) )
+			Local length:=source.bufferView.byteLength
+			
+			Local path:="memblock::("+start+","+length+")"
+			If source.mimeType.StartsWith( "image/" ) path+="."+texture.source.mimeType.Slice( 6 )
+				
+			tex=Texture.Load( path,flags )
+		Endif
 		
 		_textureCache[texture]=tex
+		
 		Return tex
 	End
 	
@@ -660,14 +678,72 @@ Class Gltf2Mojo3dLoader Extends Mojo3dLoader
 	
 	Private
 	
-	Method Open:Gltf2Loader( path:String )
+	Method Open:Gltf2Loader( path:String  )
 		
-		If ExtractExt( path ).ToLower()<>".gltf" Return Null
+		path=RealPath( path )
+		
+		Local asset:Gltf2Asset,bindata:DataBuffer
+		
+		Select ExtractExt( path ).ToLower()
+		Case ".glb"
 			
-		Local asset:=Gltf2Asset.Load( path )
+			Local stream:=Stream.Open( path,"r" )
+			
+			Local json:=""
+				
+			If stream.ReadUInt()=$46546C67	'"GLTF"
+				
+				Local version:=stream.ReadUInt()
+				Local length:=stream.ReadUInt()
+				
+				If length>12
+					
+					length-=12
+				
+					While length>=8 And Not stream.Eof
+						
+						Local clength:=stream.ReadUInt()
+						If clength>(length-8) Exit 'FAIL!
+						
+						Local ctype:=stream.ReadUInt()
+						
+						Select ctype
+						Case $4E4F534A		'"JSON"
+							Local buf:=stream.ReadAll( clength )
+							If buf.Length<>clength Exit	'FAIL!
+							json=buf.PeekString( 0 )
+							buf.Discard()
+						Case $004E4942		'"BIN"
+							bindata=stream.ReadAll( clength )
+							If bindata.Length<>clength Exit 'FAIL!
+						Default				'?????
+							If stream.Skip( clength )<>clength Exit
+						End
+						
+						length-=clength+8
+					Wend
+					
+					If length json=""
+				
+				Endif
+			
+			Endif
+			
+			stream.Close()
+			
+			If Not json Return Null
+			
+			asset=Gltf2Asset.Parse( json )
+		
+		Case ".gltf"
+		
+			asset=Gltf2Asset.Load( path )
+			
+		End
+		
 		If Not asset Return Null
 		
-		Local loader:=New Gltf2Loader( asset,ExtractDir( path ) )
+		Local loader:=New Gltf2Loader( asset,bindata,ExtractDir( path ) )
 		
 		Return loader
 	End

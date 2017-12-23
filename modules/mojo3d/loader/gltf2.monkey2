@@ -42,6 +42,8 @@ End
 #end
 Class Gltf2Image
 	Field uri:String
+	Field bufferView:Gltf2BufferView
+	Field mimeType:String
 End
 
 #rem monkeydoc @hidden
@@ -121,7 +123,6 @@ End
 #rem monkeydoc @hidden
 #end
 Class Gltf2AnimationChannel
-	
 	Field sampler:Gltf2AnimationSampler	'for shared samplers (nice).
 	Field targetNode:Gltf2Node
 	Field targetPath:String
@@ -130,7 +131,6 @@ End
 #rem monkeydoc @hidden
 #end
 Class Gltf2AnimationSampler
-	
 	Field input:Gltf2Accessor	'time
 	Field output:Gltf2Accessor	'post/rot etc
 	Field interpolation:String
@@ -174,6 +174,17 @@ Class Gltf2Asset
 		Local root:=JsonObject.Load( path )
 		If Not root Return Null
 
+		Local asset:=New Gltf2Asset( root )
+		If Not asset.LoadAsset() Return Null
+		
+		Return asset
+	End
+	
+	Function Parse:Gltf2Asset( json:String )
+		
+		Local root:=JsonObject.Parse( json )
+		If Not root Return Null
+		
 		Local asset:=New Gltf2Asset( root )
 		If Not asset.LoadAsset() Return Null
 		
@@ -291,7 +302,17 @@ Class Gltf2Asset
 			Local image:=New Gltf2Image
 			images[i]=image
 			
-			image.uri=jimage.GetString( "uri" )
+			If jimage.Contains( "uri" )
+				
+				image.uri=jimage.GetString( "uri" )
+			
+			Else If jimage.Contains( "bufferView" )
+				
+				image.bufferView=bufferViews[ jimage.GetNumber( "bufferView" ) ]
+				image.mimeType=jimage.GetString( "mimeType" )
+			
+			Endif
+			
 		Next
 		
 		Return True
