@@ -1,45 +1,23 @@
 
-Namespace mojo3d.physics
+Namespace mojo3d
 
-Class RaycastResult
+#Import "native/collisiondetect.cpp"
+#Import "native/collisiondetect.h"
 
-	Field time:Float
-	Field body:RigidBody
-	Field point:Vec3f
-	Field normal:Vec3f
-	
-	Method New()
-	End
-	
-	Method New( btresult:btCollisionWorld.ClosestRayResultCallback Ptr )
-		time=btresult->m_closestHitFraction
-		body=Cast<RigidBody>( btresult->m_collisionObject.getUserPointer() )
-		point=btresult->m_hitPointWorld
-		normal=btresult->m_hitNormalWorld
-	End
-	
-	Method New( btresult:btCollisionWorld.ClosestConvexResultCallback Ptr )
-		
-		Local castFrom:=Cast<Vec3f>( btresult->m_convexFromWorld )
-		Local castTo:=Cast<Vec3f>( btresult->m_convexToWorld )
-		
-		time=btresult->m_closestHitFraction
-		body=Cast<RigidBody>( btresult->m_hitCollisionObject.getUserPointer() )
-		point=(castTo-castFrom) * btresult->m_closestHitFraction + castFrom
-		normal=btresult->m_hitNormalWorld
-	End
-	
-End
+Extern Private
+
+Function initCollisions( world:btDynamicsWorld )
+Function resetCollisions()
+Function getNumCollisions:Int()
+Function getCollisions:Void Ptr Ptr()
+
+Public
 
 Class World
 	
 	Method New( scene:Scene )
 		
-		Assert( scene.GetDynamicProperty<World>( "$world" )=Null,"World already exists" )
-	
 		_scene=scene
-		
-		_scene.SetDynamicProperty( "$world",Self )
 		
 		Local broadphase:=New btDbvtBroadphase()
 		
@@ -50,10 +28,10 @@ Class World
 		Local solver:=New btSequentialImpulseConstraintSolver()
 		
 		_btworld=New btDiscreteDynamicsWorld( dispatcher,broadphase,solver,config )
+		
+		initCollisions( _btworld )
 
 		Gravity=New Vec3f( 0,-9.81,0 )
-		
-		_scene.Updating+=OnUpdate
 	End
 	
 	Property Scene:Scene()
@@ -70,18 +48,21 @@ Class World
 		_btworld.setGravity( gravity )
 	End
 	
-	Method RayCast:RaycastResult( rayFrom:Vec3f,rayTo:Vec3f )
+	Method RayCast:RayCastResult( rayFrom:Vec3f,rayTo:Vec3f,collisionMask:Int )
 		
 		Local btresult:=New btCollisionWorld.ClosestRayResultCallback( rayFrom,rayTo )
+		
+		btresult.m_collisionFilterGroup=collisionMask
+		btresult.m_collisionFilterMask=collisionMask
 		
 		_btworld.rayTest( rayFrom,rayTo,Cast<btCollisionWorld.RayResultCallback Ptr>( Varptr btresult ) )
 		
 		If Not btresult.hasHit() Return Null
 		
-		Return New RaycastResult( Varptr btresult )
+		Return New RayCastResult( Varptr btresult )
 	End
 	
-	Method ConvexSweep:RaycastResult( collider:ConvexCollider,castFrom:AffineMat4f,castTo:AffineMat4f )
+	Method ConvexSweep:RayCastResult( collider:ConvexCollider,castFrom:AffineMat4f,castTo:AffineMat4f )
 		
 		Local btresult:=New btCollisionWorld.ClosestConvexResultCallback( castFrom.t,castTo.t )
 		
@@ -89,17 +70,44 @@ Class World
 		
 		If Not btresult.hasHit() Return Null
 		
-		Return New RaycastResult( Varptr btresult )
+		Return New RayCastResult( Varptr btresult )
 	End
 	
-	Method ConvexSweep:RaycastResult( collider:ConvexCollider,castFrom:Vec3f,castTo:Vec3f )
+	Method ConvexSweep:RayCastResult( collider:ConvexCollider,castFrom:Vec3f,castTo:Vec3f )
 		
 		Return ConvexSweep( collider,AffineMat4f.Translation( castFrom ),AffineMat4f.Translation( castTo ) )
 	End
-	
-	Function GetCurrent:World()
+
+	Method Update( elapsed:Float )
 		
-		Return GetWorld( mojo3d.Scene.GetCurrent() )
+		resetCollisions()
+		
+		_btworld.stepSimulation( 1.0/60.0 )
+		
+		Local n:=getNumCollisions()
+		
+		Local p:=getCollisions()
+		
+		For Local i:=0 Until n
+			
+			Local body0:=Cast<RigidBody>( p[i*2] )
+			Local body1:=Cast<RigidBody>( p[i*2+1] )
+
+			Local entity0:=body0.Entity
+			Local entity1:=body1.Entity
+			
+			entity0.Collide( body1 )
+			entity1.Collide( body0 )
+			
+'			body0.Entity.Collide( body1 )
+'			body1.Entity.Collide( body0 )
+			
+'			Print "Collision:"+entity0.Name+"->"+entity1.Name
+			
+		Next
+		
+		resetCollisions()
+		
 	End
 	
 	Property btWorld:btDynamicsWorld()
@@ -108,15 +116,6 @@ Class World
 	End
 	
 	Internal
-	
-	Function GetWorld:World( scene:Scene )
-		
-		Local world:=scene.GetDynamicProperty<World>( "$world" )
-		
-		If Not world world=New World( scene )
-			
-		Return world
-	End
 	
 	Method Add( body:RigidBody )
 		
@@ -154,10 +153,4 @@ Class World
 	
 	Field _bodies:=New Stack<RigidBody>
 
-	Method OnUpdate( elapsed:Float )
-		
-		_btworld.stepSimulation( 1.0/60.0 )
-		
-	End
-	
 End

@@ -9,7 +9,7 @@ Notes:
 
 #end
 
-Namespace mojo3d.physics
+Namespace mojo3d
 
 Private
 
@@ -91,11 +91,6 @@ Class RigidBody Extends Component
 		CollisionMask=body.CollisionMask
 	End
 
-	Property World:World()
-		
-		Return World.GetWorld( Entity.Scene )
-	End
-	
 	Property Kinematic:Bool()
 		
 		Return _kinematic
@@ -220,7 +215,7 @@ Class RigidBody Extends Component
 		
 		Local collider:=Entity.Collider
 		
-		Local seq:=collider?.GuidSeq
+		Local seq:=collider?.Seq
 		
 		If seq<>_colliderseq
 			
@@ -278,6 +273,13 @@ Class RigidBody Extends Component
 		_rvisible=False
 		
 		World.Remove( Self )
+	End
+	
+	Internal
+	
+	Property World:World()
+		
+		Return Entity.Scene.World
 	End
 	
 	Private

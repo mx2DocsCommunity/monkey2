@@ -1,14 +1,5 @@
 
-Namespace mojo3d.physics
-
-#Import "native/internaledges.cpp"
-#Import "native/internaledges.h"
-
-Extern
-
-Function CreateInternalEdgeInfo( mesh:btBvhTriangleMeshShape )="bbBullet::createInternalEdgeInfo"
-	
-Public
+Namespace mojo3d
 
 Class Entity Extension
 	
@@ -48,6 +39,11 @@ Class Collider Extends Component
 	
 		Return _btshape
 	End
+	
+	Property Seq:Int()
+		
+		Return _seq
+	End
 
 Protected
 
@@ -58,10 +54,10 @@ Protected
 		If Not _btshape Return
 		
 		_btshape.destroy()
-
 		_btshape=Null
-
-		Modified()
+		
+		_gseq+=1
+		_seq=_gseq
 	End
 
 	function SetOrigin:btCollisionShape( shape:btCollisionShape,origin:Vec3f )
@@ -76,8 +72,12 @@ Protected
 	End
 	
 	Private
+	
+	Global _gseq:Int
 
 	Field _btshape:btCollisionShape
+	
+	Field _seq:Int
 	
 End
 

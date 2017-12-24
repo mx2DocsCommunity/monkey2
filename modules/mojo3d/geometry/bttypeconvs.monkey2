@@ -1,5 +1,5 @@
 
-Namespace mojo3d.physics
+Namespace mojo3d
 
 Public
 
