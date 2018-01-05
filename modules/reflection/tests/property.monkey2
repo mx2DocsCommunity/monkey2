@@ -2,49 +2,38 @@
 Namespace test
 
 #Import "<reflection>"
-
-#Import "<mojo3d>"
 #Import "<std>"
-
-Using reflection..
-
-Using std..
-
-#Reflect mojo3d
-#Reflect std
+#Import "<mojo>"
+#Import "<mojox>"
+#Import "<mojo3d>"
 
 #Reflect test
+#Reflect std
+#Reflect mojo
+#Reflect mojo3d
+#Reflect mojox
 
-Class C
-End
-
-Class D Extends C
-	
-	Property Position:Vec3f()
-	
-		Return New Vec3f(1,2,3)
-	End
-End
+Using reflection..
+Using std..
 
 Class E
 	
-	Field _c:C=New D
+	Field _name:="Brian"
 	
 	Field _pos:=New Vec3f( 1,2,3 )
 	
-	Method GetC:C()
+	Property Name:String()
 		
-		Return _c
+		Return _name
+	
+	Setter( name:String )
+		
+		_name=name
 	End
 	
 End
 
 Class E Extension
-	
-	Property D:D()
-		
-		Return Cast<D>( GetC() )
-	End
 	
 	Property Position:Vec3f()
 		
@@ -59,9 +48,11 @@ End
 
 Function Main()
 
-	DebugTypes()
-	
 	Local e:=New E
+	
+	SetProperty( "Name",e,"Douglas" )
+	
+	Print GetProperty<String>( "Name",e )
 	
 	SetProperty( "Position",e,New Vec3f( 4,5,6 ) )
 	

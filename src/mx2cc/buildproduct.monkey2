@@ -47,7 +47,7 @@ Class BuildProduct
 			
 		Local srcs:=New StringStack
 
-		If opts.productType="app" 'And Not reflects.Empty
+		If opts.productType="app"
 
 			CC_OPTS+=" -DBB_NEWREFLECTION"
 			CPP_OPTS+=" -DBB_NEWREFLECTION"			
@@ -55,7 +55,17 @@ Class BuildProduct
 			CC_OPTS+=" -I~q"+module.cacheDir+"~q"
 			CPP_OPTS+=" -I~q"+module.cacheDir+"~q"
 			
-			Local rhead:="//REFLECT:~n"+reflects.Join( "~n" )
+			reflects.Sort()
+			
+			Local buf:=New StringStack
+			buf.Add( "//REFLECT" )
+
+			For Local ref:=Eachin reflects
+				ref="#define BB_R_"+ref.Replace( "_","_0" ).Replace( ".","_" )+" 1"
+				buf.Add( ref )
+			End
+			
+			Local rhead:=buf.Join( "~n" )
 			
 			CSaveString( rhead,module.cacheDir+"_r.h" )
 			
@@ -440,7 +450,9 @@ Class GccBuildProduct Extends BuildProduct
 					If Not src Continue
 					
 					Local time:=GetFileTime( src )
+					
 					If Not time Or time>objTime
+						If Not time DeleteFile( deps )
 						uptodate=False
 						Exit
 					Endif
