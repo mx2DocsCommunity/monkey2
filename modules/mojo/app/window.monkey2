@@ -268,7 +268,34 @@ Class Window Extends View
 		OnWindowEvent( event )
 	End
 	
+	#rem monkeydoc Clear the window directly.
+	
+	ClearWindow can be used to clear the window outside of normal OnRender processing.
+	
+	#end
+	Method ClearWindow( color:Color )
+		
+		SDL_GL_MakeCurrent( _sdlWindow,_sdlGLContext )
+
+		Local bounds:=New Recti( 0,0,Frame.Size )
+		
+		_canvas.Resize( bounds.Size )
+		
+		_canvas.BeginRender( bounds,New AffineMat3f )
+		
+		_canvas.Clear( color )
+		
+		_canvas.EndRender()
+		
+		SDL_GL_SwapWindow( _sdlWindow )
+	End
+	
 	Protected
+	
+	#rem monkeydoc Called once after a Window has been created.
+	#end
+	Method OnCreateWindow() Virtual
+	End
 	
 	#rem monkeydoc Theme changed handler.
 	
@@ -315,6 +342,25 @@ Class Window Extends View
 	
 		If _contentView _contentView.Frame=Rect
 	End
+
+	Internal
+	
+	Method CreateWindow()
+		
+		If _clearEnabled ClearWindow( _clearColor )
+			
+		OnCreateWindow()
+	End
+		
+	Function CreateNewWindows()
+		
+		For Local window:=Eachin _newWindows
+			
+			window.CreateWindow()
+		End
+		
+		_newWindows.Clear()
+	End
 	
 	Private
 	
@@ -345,6 +391,7 @@ Class Window Extends View
 	Global _allWindows:=New Stack<Window>
 	Global _visibleWindows:=New Stack<Window>
 	Global _windowsByID:=New Map<UInt,Window>
+	Global _newWindows:=New Stack<Window>
 	
 	Method SetMinSize( size:Vec2i )
 		size/=_mouseScale
@@ -530,6 +577,7 @@ Class Window Extends View
 		bbglInit()
 		
 		_allWindows.Push( Self )
+		_newWindows.Push( Self )
 		_windowsByID[SDL_GetWindowID( _sdlWindow )]=Self
 		If Not (flags & WindowFlags.Hidden) _visibleWindows.Push( Self )
 		
