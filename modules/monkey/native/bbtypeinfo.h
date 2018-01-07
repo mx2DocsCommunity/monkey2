@@ -7,7 +7,7 @@
 #include "bbarray.h"
 #include "bbfunction.h"
 
-struct bbClassTypeInfo;
+//struct bbClassTypeInfo;
 
 struct bbTypeInfo{
 
@@ -41,6 +41,11 @@ struct bbTypeInfo{
 	virtual bbBool extendsType( bbTypeInfo *type );
 	
 	virtual bbArray<bbDeclInfo*> getDecls();
+	
+	virtual bbVariant makeEnum( int value );
+	
+	virtual int getEnum( bbVariant );
+	
 	
 	bbDeclInfo *getDecl( bbString name );
 	
@@ -80,9 +85,13 @@ struct bbObjectTypeInfo : public bbTypeInfo{
 	bbArray<bbDeclInfo*> getDecls();
 };
 
-struct bbPrimTypeInfo : public bbTypeInfo{
+template<class T> struct bbPrimTypeInfo : public bbTypeInfo{
 
-	bbPrimTypeInfo( bbString name );
+	bbPrimTypeInfo( bbString name ){
+		this->name=name;
+		this->kind="Primitive";
+	}
+	
 };
 
 template<class T> struct bbPointerTypeInfo : public bbTypeInfo{
@@ -91,10 +100,11 @@ template<class T> struct bbPointerTypeInfo : public bbTypeInfo{
 		this->name=bbGetType<T>()->name+" Ptr";
 		this->kind="Pointer";
 	}
-	
+
 	bbTypeInfo *pointeeType(){
 		return bbGetType<T>();
 	}
+	
 };
 
 template<class T,int D> struct bbArrayTypeInfo : public bbTypeInfo{
@@ -147,45 +157,6 @@ template<class...A> struct bbFunctionTypeInfo<void,A...> : public bbTypeInfo{
 
 };
 
-struct bbClassDecls{
-
-	bbClassDecls *_succ;
-	bbDeclInfo **_decls=0;
-	int _numDecls=0;
-
-	bbClassDecls( bbClassTypeInfo *classType );
-	
-	bbDeclInfo **decls();
-	
-	int numDecls();
-	
-	virtual bbDeclInfo **initDecls(){
-		return 0;
-	}
-};
-
-struct bbClassTypeInfo : public bbTypeInfo{
-
-	bbClassTypeInfo *_succ=0;
-	bbClassDecls *_decls=0;
-	
-	bbClassTypeInfo( bbString name,bbString kind );
-	
-	bbTypeInfo *superType();
-	
-	bbArray<bbTypeInfo*> interfaceTypes();
-	
-	bbBool extendsType( bbTypeInfo *type );
-	
-	bbArray<bbDeclInfo*> getDecls();
-	
-	bbString toString(){
-		return kind+" "+name;
-	}
-	
-	static bbClassTypeInfo *getNamespace( bbString name );
-};
-
 #define BB_GETTYPE_DECL( TYPE ) bbTypeInfo *bbGetType( TYPE const& );
 
 BB_GETTYPE_DECL( bbBool )
@@ -207,10 +178,14 @@ inline bbTypeInfo *bbGetType( bbObject* const& ){
 	return &bbObjectTypeInfo::instance;
 }
 
-template<class T> bbTypeInfo *bbGetType( T const& ){
-	static bbUnknownTypeInfo info;
+template<class T> bbTypeInfo *bbGetUnknownType(){
+ 	static bbUnknownTypeInfo info;
 	
 	return &info;
+}
+
+template<class T> bbTypeInfo *bbGetType( T const& ){
+	return bbGetUnknownType<T>();
 }
 
 template<class T> bbTypeInfo *bbGetType( T* const& ){

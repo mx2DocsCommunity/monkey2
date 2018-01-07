@@ -45,6 +45,7 @@ Class Translator_CPP Extends Translator
 		Reset()
 	
 		Emit( "#include <bbmonkey.h>" )
+		Emit( "#include <bbtypeinfo_r.h>" )
 		Emit( "#include <bbdeclinfo_r.h>" )
 		Emit( "#if BB_NEWREFLECTION" )
 		Emit( "#include ~q_r.h~q" )
@@ -90,6 +91,14 @@ Class Translator_CPP Extends Translator
 		
 				EmitTypeInfo( fdecl )
 		
+				For Local etype:=Eachin fdecl.enums
+					
+					If Not GenTypeInfo( etype ) Continue
+					
+					EmitTypeInfo( etype )
+				
+				Next
+				
 				For Local ctype:=Eachin fdecl.classes
 				
 					If Not GenTypeInfo( ctype ) Continue
@@ -106,6 +115,14 @@ Class Translator_CPP Extends Translator
 		
 				EmitNullTypeInfo( fdecl )
 		
+				For Local etype:=Eachin fdecl.enums
+					
+					If Not GenTypeInfo( etype ) Continue
+					
+					EmitNullTypeInfo( etype )
+				
+				Next
+				
 				For Local ctype:=Eachin fdecl.classes
 				
 					If Not GenTypeInfo( ctype ) Continue
@@ -130,29 +147,33 @@ Class Translator_CPP Extends Translator
 	Method EmitNullTypeInfo( fdecl:FileDecl )
 		
 	End
+
+	Method EmitNullTypeInfo( etype:EnumType )
+		
+		Local ename:=EnumName( etype )
+		
+		Emit( "bbTypeInfo *bbGetType("+ename+" const&){" )
+		Emit( "return bbGetUnknownType<"+ename+">();" )
+		Emit( "}" )
+	End
 	
 	Method EmitNullTypeInfo( ctype:ClassType )
 
 		Local cname:=ClassName( ctype )
-		Local rname:=""
-		
+
 		If ctype.IsStruct
 			Emit( "bbTypeInfo *bbGetType("+cname+" const&){" )
-			rname="bbVoidTypeInfo"
 		Else
 			Emit( "bbTypeInfo *bbGetType("+cname+"* const&){" )
-			rname="bbObjectTypeInfo"
 		Endif
-						
-		Emit( "return &"+rname+"::instance;" )
+
+		Emit( "return bbGetUnknownType<"+cname+">();" )
 		Emit( "}" )
 		
 		Emit( "bbTypeInfo *"+cname+"::typeof()const{" )
-		Emit( "return &"+rname+"::instance;" )
+		Emit( "return bbGetUnknownType<"+cname+">();" )
 		Emit( "}" )
-		
 	End
-	
 	
 	Method TranslateFile( fdecl:FileDecl )
 	
@@ -193,10 +214,19 @@ Class Translator_CPP Extends Translator
 
 		EmitBr()
 		For Local etype:=Eachin fdecl.enums
+			
 			Local ename:=EnumName( etype )
+			
 			Emit( "enum class "+ename+";" )
-			Emit( "bbString bbDBType("+ename+"*);" )
-			Emit( "bbString bbDBValue("+ename+"*);" )
+			
+			If GenTypeInfo( etype )
+				Emit( "bbTypeInfo *bbGetType("+ename+" const&);" )
+			Endif
+			
+			If _debug
+				Emit( "bbString bbDBType("+ename+"*);" )
+				Emit( "bbString bbDBValue("+ename+"*);" )
+			Endif
 		Next
 		
 		EmitBr()
@@ -376,11 +406,6 @@ Class Translator_CPP Extends Translator
 		Emit( "void mx2_"+fdecl.ident+"_init_f(){" )
 		
 		BeginGCFrame()
-		
-		'This now done in module main...
-		'Emit( "static bool done;" )
-		'Emit( "if(done) return;" )
-		'Emit( "done=true;")
 		
 		'initalize globals
 		'
@@ -660,9 +685,9 @@ Class Translator_CPP Extends Translator
 		
 		If GenTypeInfo( ctype )
 			If ctype.IsStruct
-				Emit( "bbTypeInfo *bbGetType( "+cname+" const& );" )
+				Emit( "bbTypeInfo *bbGetType("+cname+" const&);" )
 			Else
-				Emit( "bbTypeInfo *bbGetType( "+cname+"* const& );" )
+				Emit( "bbTypeInfo *bbGetType("+cname+"* const&);" )
 			Endif
 		Endif
 		
@@ -937,6 +962,64 @@ Class Translator_CPP Extends Translator
 		
 		Emit( "}_"+tname+";" )
 	End
+	
+	Method EmitTypeInfo( etype:EnumType )
+		
+		UsesRefInfo( etype )
+		
+		Local edecl:=etype.edecl
+		Local ename:=EnumName( etype )
+		Local rname:="e"+ename
+		
+		EmitBr()
+
+		Emit( "struct "+rname+" : public bbEnumTypeInfo{" )
+		
+		Emit( "static "+rname+" instance;" )
+		
+		'struct decls_t
+		Emit( "static struct decls_t : public bbClassDecls{" )
+		
+		Emit( "decls_t():bbClassDecls(&instance){}" )
+		
+		'initDecls()
+		Emit( "bbDeclInfo **initDecls(){" )
+		
+		Local decls:=New StringStack
+		
+		For Local it:=Eachin etype.scope.nodes
+			decls.Add( "bbLiteralDecl<"+ename+">(~q"+it.Key+"~q,("+ename+")"+Cast<LiteralValue>( it.Value ).value+")" )
+'			decls.Add( "bbLiteralDecl<int>(~q"+it.Key+"~q,"+Cast<LiteralValue>( it.Value ).value+")" )
+		Next
+
+		Emit( "return bbMembers("+decls.Join( "," )+");" )
+		Emit( "}" )
+		Emit( "}decls;" )
+		
+		'Ctor
+		Emit( rname+"():bbEnumTypeInfo(~q"+etype.Name+"~q){" )
+		Emit( "}" )
+		
+		'MakeEnum
+		Emit( "bbVariant makeEnum( int i ){" )
+		Emit( "return bbVariant( ("+ename+")i );" )
+		Emit( "}" )
+		
+		Emit( "int getEnum( bbVariant v ){" )
+		Emit( "return (int)v.get<"+ename+">();" )
+		Emit( "}" )
+		
+		Emit( "};" )
+		
+		Emit( rname+" "+rname+"::instance;" )
+		Emit( rname+"::decls_t "+rname+"::decls;" )
+		
+		EmitBr()
+		
+		Emit( "bbTypeInfo *bbGetType("+ename+" const&){" )
+		Emit( "return &"+rname+"::instance;" )
+		Emit( "}" )
+	End
 
 	Method EmitTypeInfo( ctype:ClassType )
 	
@@ -963,137 +1046,144 @@ Class Translator_CPP Extends Translator
 		
 		Local decls:=New StringStack
 		
-		If ctype.IsClass And Not ctype.IsAbstract And Not cdecl.IsExtension
-			If ctype.ctors.Length
-				For Local ctor:=Eachin ctype.ctors
-					If Not GenTypeInfo( ctor ) Continue
-				
-					Local meta:=ctor.fdecl.meta ? EnquoteCppString( ctor.fdecl.meta ) Else ""
+'		If ctype.scope.outer.IsInstanceOf	'semi-generic?
+		If ctype.scope.IsInstanceOf			'generic?
+			
+		Else
+			
+			If ctype.IsClass And Not ctype.IsAbstract And Not cdecl.IsExtension
+				If ctype.ctors.Length
+					For Local ctor:=Eachin ctype.ctors
+						If Not GenTypeInfo( ctor ) Continue
 					
-					Local args:=cname
-					For Local arg:=Eachin ctor.ftype.argTypes
-						If args args+=","
-						args+=TransType( arg )
-					Next
-					
-					UsesRefInfo( ctor )
-					decls.Push( "bbCtorDecl<"+args+">("+meta+")" )
-				Next
-			Else
-				'default ctor!
-				decls.Push( "bbCtorDecl<"+cname+">()" )
-			Endif
-		Endif
-		
-		For Local vvar:=Eachin ctype.fields
-			If Not GenTypeInfo( vvar ) Continue
-			
-			Local id:=vvar.vdecl.ident
-			Local vname:=VarName( vvar )
-			Local meta:=vvar.vdecl.meta ? ","+EnquoteCppString( vvar.vdecl.meta ) Else ""
-			
-			UsesRefInfo( vvar )
-			decls.Push( "bbFieldDecl(~q"+id+"~q,&"+cname+"::"+vname+meta+")" )
-		Next
-
-		For Local func:=Eachin ctype.methods
-			If func.fdecl.flags & (DECL_GETTER|DECL_SETTER) Or Not GenTypeInfo( func ) Continue
-			
-			If func.IsExtension 
-				Print "Extension:"+func.fdecl.ident
-				Continue
-			Endif
-			
-			Local id:=func.fdecl.ident
-			Local fname:=FuncName( func )
-			Local meta:=func.fdecl.meta ? ","+EnquoteCppString( func.fdecl.meta ) Else ""
-			
-			Local args:=cname+","+TransType( func.ftype.retType )
-			For Local arg:=Eachin func.ftype.argTypes
-				args+=","+TransType( arg )
-			Next
-			
-			UsesRefInfo( func )
-			decls.Push( "bbMethodDecl<"+args+">(~q"+id+"~q,&"+cname+"::"+fname+meta+")" )
-		Next
-		
-		For Local node:=Eachin ctype.scope.nodes.Values
-			Local plist:=Cast<PropertyList>( node )
-			If Not plist Continue
-			If plist.getFunc And Not GenTypeInfo( plist.getFunc ) Continue
-			If plist.setFunc And Not GenTypeInfo( plist.setFunc ) Continue
-			
-			Local id:=plist.pdecl.ident
-			Local meta:=plist.pdecl.meta ? ","+EnquoteCppString( plist.pdecl.meta ) Else ""
-
-			UsesRefInfo( plist.type )
-			
-			If cdecl.IsExtension
-				
-				Local cname:=ClassName( ctype.superType )
-				Local args:=cname+","+TransType( plist.type )
-				
-				Local get:=plist.getFunc ? "&"+FuncName( plist.getFunc ) Else "0"
-				Local set:=plist.setFunc ? "&"+FuncName( plist.setFunc ) Else "0"
-				decls.Push( "bbExtPropertyDecl<"+args+">(~q"+id+"~q,"+get+","+set+meta+")" )
-				
-			Else
-
-				Local args:=cname+","+TransType( plist.type )
-				
-				Local get:=plist.getFunc ? "&"+cname+"::"+FuncName( plist.getFunc ) Else "0"
-				Local set:=plist.setFunc ? "&"+cname+"::"+FuncName( plist.setFunc ) Else "0"
-				decls.Push( "bbPropertyDecl<"+args+">(~q"+id+"~q,"+get+","+set+meta+")" )
-				
-			Endif
-		Next
-		
-		For Local vvar:=Eachin fdecl.globals
-			If vvar.scope<>ctype.scope Or Not GenTypeInfo( vvar ) Continue
-			
-			Local id:=vvar.vdecl.ident
-			Local vname:=VarName( vvar )
-			Local meta:=vvar.vdecl.meta ? ","+EnquoteCppString( vvar.vdecl.meta ) Else ""
-
-			UsesRefInfo( vvar )			
-			decls.Push( "bb"+vvar.vdecl.kind.Capitalize()+"Decl(~q"+id+"~q,&"+vname+meta+")" )
-		Next
-		
-		For Local func:=Eachin fdecl.functions
-			
-			If func.scope<>ctype.scope Or Not GenTypeInfo( func ) Continue
-			
-			If func.fdecl.flags & (DECL_GETTER|DECL_SETTER) Continue
-			
-			Local id:=func.fdecl.ident
-			Local fname:=FuncName( func )
-			Local meta:=func.fdecl.meta ? ","+EnquoteCppString( func.fdecl.meta ) Else ""
-				
-			If func.IsExtension
-'			If func.fdecl.IsExtension
-
-				Local cname:=ClassName( func.selfType )
+						Local meta:=ctor.fdecl.meta ? EnquoteCppString( ctor.fdecl.meta ) Else ""
 						
+						Local args:=cname
+						For Local arg:=Eachin ctor.ftype.argTypes
+							If args args+=","
+							args+=TransType( arg )
+						Next
+						
+						UsesRefInfo( ctor )
+						decls.Push( "bbCtorDecl<"+args+">("+meta+")" )
+					Next
+				Else
+					'default ctor!
+					decls.Push( "bbCtorDecl<"+cname+">()" )
+				Endif
+			Endif
+			
+			For Local vvar:=Eachin ctype.fields
+				If Not GenTypeInfo( vvar ) Continue
+				
+				Local id:=vvar.vdecl.ident
+				Local vname:=VarName( vvar )
+				Local meta:=vvar.vdecl.meta ? ","+EnquoteCppString( vvar.vdecl.meta ) Else ""
+				
+				UsesRefInfo( vvar )
+				decls.Push( "bbFieldDecl(~q"+id+"~q,&"+cname+"::"+vname+meta+")" )
+			Next
+	
+			For Local func:=Eachin ctype.methods
+				If func.fdecl.flags & (DECL_GETTER|DECL_SETTER) Or Not GenTypeInfo( func ) Continue
+				
+				If func.IsExtension 
+					Print "Extension:"+func.fdecl.ident
+					Continue
+				Endif
+				
+				Local id:=func.fdecl.ident
+				Local fname:=FuncName( func )
+				Local meta:=func.fdecl.meta ? ","+EnquoteCppString( func.fdecl.meta ) Else ""
+				
 				Local args:=cname+","+TransType( func.ftype.retType )
 				For Local arg:=Eachin func.ftype.argTypes
 					args+=","+TransType( arg )
 				Next
-						
-				UsesRefInfo( func )
-				decls.Push( "bbExtMethodDecl<"+args+">(~q"+id+"~q,&"+fname+meta+")" )
-			
-			Else
-			
-				Local args:=TransType( func.ftype.retType )
-				For Local arg:=Eachin func.ftype.argTypes
-					args+=","+TransType( arg )
-				Next
-	
-				UsesRefInfo( func )
-				decls.Push( "bbFunctionDecl<"+args+">(~q"+id+"~q,&"+fname+meta+")" )
 				
-			Endif
-		Next
+				UsesRefInfo( func )
+				decls.Push( "bbMethodDecl<"+args+">(~q"+id+"~q,&"+cname+"::"+fname+meta+")" )
+			Next
+			
+			For Local node:=Eachin ctype.scope.nodes.Values
+				Local plist:=Cast<PropertyList>( node )
+				If Not plist Continue
+				If plist.getFunc And Not GenTypeInfo( plist.getFunc ) Continue
+				If plist.setFunc And Not GenTypeInfo( plist.setFunc ) Continue
+				
+				Local id:=plist.pdecl.ident
+				Local meta:=plist.pdecl.meta ? ","+EnquoteCppString( plist.pdecl.meta ) Else ""
+	
+				UsesRefInfo( plist.type )
+				
+				If cdecl.IsExtension
+					
+					Local cname:=ClassName( ctype.superType )
+					Local args:=cname+","+TransType( plist.type )
+					
+					Local get:=plist.getFunc ? "&"+FuncName( plist.getFunc ) Else "0"
+					Local set:=plist.setFunc ? "&"+FuncName( plist.setFunc ) Else "0"
+					decls.Push( "bbExtPropertyDecl<"+args+">(~q"+id+"~q,"+get+","+set+meta+")" )
+					
+				Else
+	
+					Local args:=cname+","+TransType( plist.type )
+					
+					Local get:=plist.getFunc ? "&"+cname+"::"+FuncName( plist.getFunc ) Else "0"
+					Local set:=plist.setFunc ? "&"+cname+"::"+FuncName( plist.setFunc ) Else "0"
+					decls.Push( "bbPropertyDecl<"+args+">(~q"+id+"~q,"+get+","+set+meta+")" )
+					
+				Endif
+			Next
+			
+			For Local vvar:=Eachin fdecl.globals
+				If vvar.scope<>ctype.scope Or Not GenTypeInfo( vvar ) Continue
+				
+				Local id:=vvar.vdecl.ident
+				Local vname:=VarName( vvar )
+				Local meta:=vvar.vdecl.meta ? ","+EnquoteCppString( vvar.vdecl.meta ) Else ""
+	
+				UsesRefInfo( vvar )			
+				decls.Push( "bb"+vvar.vdecl.kind.Capitalize()+"Decl(~q"+id+"~q,&"+vname+meta+")" )
+			Next
+			
+			For Local func:=Eachin fdecl.functions
+				
+				If func.scope<>ctype.scope Or Not GenTypeInfo( func ) Continue
+				
+				If func.fdecl.flags & (DECL_GETTER|DECL_SETTER) Continue
+				
+				Local id:=func.fdecl.ident
+				Local fname:=FuncName( func )
+				Local meta:=func.fdecl.meta ? ","+EnquoteCppString( func.fdecl.meta ) Else ""
+					
+				If func.IsExtension
+	'			If func.fdecl.IsExtension
+	
+					Local cname:=ClassName( func.selfType )
+							
+					Local args:=cname+","+TransType( func.ftype.retType )
+					For Local arg:=Eachin func.ftype.argTypes
+						args+=","+TransType( arg )
+					Next
+							
+					UsesRefInfo( func )
+					decls.Push( "bbExtMethodDecl<"+args+">(~q"+id+"~q,&"+fname+meta+")" )
+				
+				Else
+				
+					Local args:=TransType( func.ftype.retType )
+					For Local arg:=Eachin func.ftype.argTypes
+						args+=","+TransType( arg )
+					Next
+		
+					UsesRefInfo( func )
+					decls.Push( "bbFunctionDecl<"+args+">(~q"+id+"~q,&"+fname+meta+")" )
+					
+				Endif
+			Next
+		
+		Endif
 		
 		Emit( "return bbMembers("+decls.Join( "," )+");" )
 		
@@ -1101,7 +1191,7 @@ Class Translator_CPP Extends Translator
 		
 		Emit( "}decls;" )
 
-		'Ctor		
+		'Ctor
 		Local name:=ctype.Name
 		Local kind:=cdecl.kind.Capitalize()
 		If cdecl.IsExtension 
@@ -1145,9 +1235,9 @@ Class Translator_CPP Extends Translator
 		EmitBr()
 
 		If ctype.IsStruct
-			Emit( "bbTypeInfo *bbGetType( "+cname+" const& ){" )
+			Emit( "bbTypeInfo *bbGetType("+cname+" const&){" )
 		Else
-			Emit( "bbTypeInfo *bbGetType( "+cname+"* const& ){" )
+			Emit( "bbTypeInfo *bbGetType("+cname+"* const&){" )
 		Endif
 
 		Emit( "return &"+rcname+"::instance;" )
@@ -2377,9 +2467,20 @@ Function GenTypeInfo:Bool( func:FuncValue )
 	
 	'sanity check
 	If func.fdecl.kind<>"method" And func.fdecl.kind<>"function" Return False
-	
-	'disable generic method instances (for now - almost working!)
+
+	'disable generic method instances
 	If func.IsExtension Return func.fdecl.IsExtension
+	
+	Return True
+End
+
+Function GenTypeInfo:Bool( etype:EnumType )
+
+	'disable native enums	
+	If etype.edecl.IsExtern Return False
+	
+	'disable enums in generic scopes
+	If etype.scope.IsInstanceOf Return False
 	
 	Return True
 End
@@ -2389,8 +2490,8 @@ Function GenTypeInfo:Bool( ctype:ClassType )
 	'disable native types
 	If ctype.ExtendsVoid Return False
 	
-	'disable generic type instances (for now - almost working!)
-	If ctype.types Return False
+	'disable generic type instances
+	If ctype.scope.IsInstanceOf Return False
 
 	'disable structs
 	'If ctype.IsStruct Return False
@@ -2400,3 +2501,4 @@ Function GenTypeInfo:Bool( ctype:ClassType )
 	
 	Return True
 End
+

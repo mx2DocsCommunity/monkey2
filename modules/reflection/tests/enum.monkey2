@@ -1,3 +1,4 @@
+
 Namespace test
 
 #Reflect test
@@ -28,9 +29,13 @@ Function Main()
 	
 	Local g:=TypeInfo.GetType( "test" ).GetDecl( "G" )
 	
+	'one way To set an enum...
 	g.Set( Null,type.MakeEnum( E.A ) )
 	Print g.Get( Null ).EnumValue
-
+	
+	'another way to set an enum...!
 	g.Set( Null,type.MakeEnum( 2 ) )
 	Print g.Get( Null ).EnumValue
+	
+	
 End
