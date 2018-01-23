@@ -4,7 +4,7 @@ Namespace myapp
 #Import "<mojo>"
 #Import "<mojo3d>"
 
-#Import "assets/bouncyball/"
+#Import "assets/"
 
 Using std..
 Using mojo..
@@ -18,39 +18,50 @@ Class MyWindow Extends Window
 	
 	Field _light:Light
 	
-	Field _model:Model
-	
 	Method New( title:String="Simple mojo app",width:Int=640,height:Int=480,flags:WindowFlags=WindowFlags.Resizable )
 
 		Super.New( title,width,height,flags )
 		
-		_scene=Scene.GetCurrent()
-		
+		SetConfig( "MOJO3D_RENDERER","forward" )
+
+		'create scene
+		'		
+		_scene=New Scene
 		_scene.ClearColor=Color.Sky
+		_scene.FogColor=Color.Sky
+		_scene.FogNear=25
+		_scene.FogFar=50
 		
 		'create camera
 		'
 		_camera=New Camera( Self )
-		_camera.Move( 0,10,-5 )
+		_camera.Near=.1
+		_camera.Far=100
+		_camera.Move( 0,10,-10 )
 		
 		New FlyBehaviour( _camera )
 		
 		'create light
 		'
 		_light=New Light
-		_light.RotateX( 90 )
+		_light.Rotate( 30,60,0 )
 		
-		'create donut - metallic silver...
+		'Create cube
+		'
+		Local cube:=Model.CreateBox( New Boxf( -1,1 ),1,1,1,New PbrMaterial( Color.Grey ) )
 		
-		Local material:=New PbrMaterial( Color.Silver,1,0.5 )
+		cube.CastsShadow=False
 		
-		_model=Model.LoadBoned( "asset::bouncyball.gltf" )
+		For Local x:=-50.0 To 50.0 Step 2.5
+			For Local z:=-50.0 To 50.0 Step 2.5
+				Local copy:=cube.Copy()
+				copy.Move( x,0,z )
+				
+				copy.Alpha=(x+50)/100
+			Next
+		Next
 		
-		_model.Animator.Animate( 0 )
-		
-		_model.Move( 0,7,0 )
-		
-'		_model.Mesh.FitVertices( New Boxf( -1,1 ),False )
+		cube.Destroy()
 	End
 	
 	Method OnRender( canvas:Canvas ) Override
@@ -59,15 +70,15 @@ Class MyWindow Extends Window
 		
 		_scene.Update()
 		
-		_scene.Render( canvas )
+		_camera.Render( canvas )
 		
-		canvas.DrawText( "FPS="+App.FPS,0,0 )
+		canvas.DrawText( "FPS="+App.FPS,Width,0,1,0 )
 	End
 	
 End
 
 Function Main()
-
+	
 	New AppInstance
 	
 	New MyWindow

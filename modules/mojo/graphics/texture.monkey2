@@ -31,7 +31,7 @@ Function glInternalFormat:GLenum( format:PixelFormat )
 	Case PixelFormat.RGBA8 Return GL_RGBA
 '	Case PixelFormat.RGBA16F Return GL_RGBA
 	Case PixelFormat.RGBA32F Return BBGL_ES ? GL_RGBA Else GL_RGBA32F
-	Case PixelFormat.Depth32 Return BBGL_ES ? GL_DEPTH_COMPONENT Else GL_DEPTH_COMPONENT32F
+	Case PixelFormat.Depth32 Return GL_DEPTH_COMPONENT
 	End
 	RuntimeError( "Invalid PixelFormat" )
 	Return GL_RGBA
@@ -300,10 +300,18 @@ Class Texture Extends Resource
 		Return Null
 	End
 
-	Function Load:Texture( path:String,flags:TextureFlags )
+	Function Load:Texture( path:String,flags:TextureFlags,flipNormalY:Bool=False )
 
 		Local pixmap:=Pixmap.Load( path,,True )
 		If Not pixmap Return Null
+		
+		If flipNormalY
+			For Local y:=0 Until pixmap.Height
+				For Local x:=0 Until pixmap.Width
+					pixmap.SetPixelARGB( x,y,pixmap.GetPixelARGB( x,y ) ~ $ff00 )
+				Next
+			Next
+		Endif
 		
 		Local texture:=New Texture( pixmap,flags )
 		
@@ -391,7 +399,7 @@ Class Texture Extends Resource
 	#end
 	Method Bind( unit:Int )
 		
-		Assert( Not _cubeMap )
+'		Assert( unit<7 And Not _cubeMap )
 		
 		Local gltex:=ValidateGLTexture()
 		
