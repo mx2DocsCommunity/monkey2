@@ -75,6 +75,7 @@ Class Gltf2Material
 	Field emissiveFactor:Vec3f=New Vec3f(0)
 	Field occlusionTexture:Gltf2Texture
 	Field normalTexture:Gltf2Texture
+	Field alphaMode:String
 End
 
 #rem monkeydoc @hidden
@@ -83,6 +84,7 @@ Class Gltf2Primitive
 	Field POSITION:Gltf2Accessor
 	Field NORMAL:Gltf2Accessor
 	Field TANGENT:Gltf2Accessor
+	Field COLOR_0:Gltf2Accessor
 	Field TEXCOORD_0:Gltf2Accessor
 	Field JOINTS_0:Gltf2Accessor
 	Field WEIGHTS_0:Gltf2Accessor
@@ -419,6 +421,7 @@ Class Gltf2Asset
 			If jobj
 				material.normalTexture=textures[jobj.GetNumber( "index" )]
 			Endif
+			material.alphaMode=jmaterial.GetString( "alphaMode" )
 
 		Next
 		
@@ -461,6 +464,9 @@ Class Gltf2Asset
 				Endif
 				If jattribs.Contains( "TANGENT" )
 					prim.TANGENT=accessors[jattribs.GetNumber( "TANGENT" )]
+				Endif
+				If jattribs.Contains( "COLOR_0" )
+					prim.COLOR_0=accessors[jattribs.GetNumber( "COLOR_0" )]
 				Endif
 				If jattribs.Contains( "TEXCOORD_0" )
 					prim.TEXCOORD_0=accessors[jattribs.GetNumber( "TEXCOORD_0" )]

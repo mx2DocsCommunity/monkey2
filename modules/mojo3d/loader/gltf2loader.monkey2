@@ -211,6 +211,10 @@ Class Gltf2Loader
 			
 		If normalTexture mat.NormalTexture=normalTexture
 			
+		Select material.alphaMode
+		Case "BLEND" mat.BlendMode=BlendMode.Alpha
+		End
+			
 		_materialCache[material]=mat
 		Return mat
 	End
@@ -274,6 +278,21 @@ Class Gltf2Loader
 				For Local i:=0 Until vcount
 					vertices[i].normal=Cast<Vec3f Ptr>( datap )[0]
 					vertices[i].normal.z=-vertices[i].normal.z
+					datap+=stride
+				Next
+			Endif
+		Endif
+		
+		If prim.COLOR_0 
+			If prim.COLOR_0.componentType=GLTF_FLOAT And prim.COLOR_0.type="VEC4"
+				Print "Gltf2 primitive has colors"
+				Local datap:=GetData( prim.COLOR_0 )
+				Local stride:=prim.COLOR_0.bufferView.byteStride ?Else 16
+				For Local i:=0 Until vcount
+					Local color:=Cast<Vec4f Ptr>( datap )[0]
+					color.w=1
+					Local a:=color.w * 255.0
+					vertices[i].color=UInt(a) Shl 24 | UInt(color.z*a) Shl 16 | UInt(color.y*a) Shl 8 | UInt(color.x*a)
 					datap+=stride
 				Next
 			Endif
