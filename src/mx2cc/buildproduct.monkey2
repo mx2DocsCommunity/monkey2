@@ -425,26 +425,43 @@ Class GccBuildProduct Extends BuildProduct
 						If i1=-1 Exit
 						tmp=tmp.Slice( 0,i0+1 )+tmp.Slice( i1+1 )
 					Forever
-					tmp+=" -arch armv7"
 					
+					If opts.arch<>"x64" tmp+=" -arch armv7"
 				Endif
 				
 				tmp+=" -MM ~q"+src+"~q >~q"+deps+"~q"
 				
 				Exec( tmp )
 				
-				uptodate=True
+				Local buf:=New StringStack
 				
+				Local lines:=LoadString( deps ).Split( " \" )
+				
+				For Local i:=1 Until lines.Length
+					
+					Local line:=lines[i].Trim().Replace( "\ "," " )
+					
+					If Not line Or line=src Continue
+					
+					buf.Add( line )
+				Next
+				
+				SaveString( buf.Join( "~n" ),deps )
+				
+				uptodate=True
 			Endif
 			
 			If uptodate
-			
-				Local srcs:=LoadString( deps ).Split( " \" )
-						
-				For Local i:=1 Until srcs.Length
-						
-					Local src:=srcs[i].Trim()
-					If Not src Continue
+				
+				Local str:=LoadString( deps )
+				
+				If Not str Return obj
+				
+				Local lines:=str.Split( "~n" )
+				
+				For Local line:=Eachin lines
+					
+					Local src:=line
 					
 					Local time:=GetFileTime( src )
 					
@@ -487,7 +504,9 @@ Class GccBuildProduct Extends BuildProduct
 			If system( cmd+" 2>"+fstderr )
 
 				Local buf:=New StringStack
+				
 				For Local line:=Eachin LoadString( fstdout,True ).Split( "~n" )
+					
 					If Not line.StartsWith( "Note: including file:" ) buf.Add( line )
 				Next
 				
@@ -496,17 +515,13 @@ Class GccBuildProduct Extends BuildProduct
 				err+=LoadString( fstderr,True )
 				
 				Throw New BuildEx( err )
-				
 			Endif
 			
-			Local tincs:=LoadString( fstdout )
-			
 			Local buf:=New StringStack
-			buf.Push( StripDir( obj )+": "+src+" \" )
-
-			For Local line:=Eachin tincs.Split( "~n" )
-				
-				line=line.Trim()
+			
+			Local lines:=LoadString( fstdout ).Split( "~n" )
+			
+			For Local line:=Eachin lines
 				
 				If Not line.StartsWith( "Note: including file:" ) Continue
 				
@@ -516,14 +531,10 @@ Class GccBuildProduct Extends BuildProduct
 				
 				line=line.Replace( "\","/" )
 				
-				buf.Add( line+" \" )
+				buf.Add( line )
 			Next
 			
-			Local str:=buf.Join( "~n" )
-			
-'			Print "deps="+str
-			
-			SaveString( str,deps )
+			SaveString( buf.Join( "~n" ),deps )
 			
 			Return obj
 		Endif
