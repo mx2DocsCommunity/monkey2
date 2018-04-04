@@ -31,6 +31,7 @@
 #Import "action/FindActions"
 #Import "action/ViewActions"
 #Import "action/WindowActions"
+#Import "action/TabActions"
 
 #Import "dialog/FindDialog"
 #Import "dialog/PrefsDialog"
@@ -79,6 +80,7 @@
 
 #Import "utils/JsonUtils"
 #Import "utils/Utils"
+#Import "utils/TextUtils"
 
 #Import "view/IRCView"
 #Import "view/CodeMapView"
@@ -113,6 +115,7 @@
 #Import "view/ViewExtensions"
 #Import "view/DockingViewExt"
 #Import "view/DraggableViewListener"
+#Import "view/Undock"
 
 #Import "Tree"
 #Import "Tuple"
@@ -134,7 +137,7 @@ Using sdl2..
 
 Const MONKEY2_DOMAIN:="http://monkeycoder.co.nz"
 
-Global AppTitle:="Ted2Go v2.8.1"
+Global AppTitle:="Ted2Go v2.9"
 
 
 Function Main()
@@ -163,7 +166,7 @@ Function Main()
 	
 	'initial theme
 	'
-	If Not jobj.Contains( "theme" ) jobj["theme"]=New JsonString( "theme-prime-blue-regular" )
+	If Not jobj.Contains( "theme" ) jobj["theme"]=New JsonString( "theme-hollow" )
 
 	If Not jobj.Contains( "themeScale" ) jobj["themeScale"]=New JsonNumber( 1 )
 	
@@ -181,7 +184,7 @@ Function Main()
 
 	Local rect:Recti
 	
-	If jobj.Contains( "windowRect" ) 
+	If jobj.Contains( "windowRect" )
 		rect=ToRecti( jobj["windowRect"] )
 	Else
 		Local w:=Min( 1480,App.DesktopSize.x-40 )

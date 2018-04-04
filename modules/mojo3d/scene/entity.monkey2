@@ -61,11 +61,11 @@ Class Entity Extends DynamicObject
 	#end
 	Method Copy:Entity( parent:Entity=Null ) Virtual
 		
-		Local copy:=New Entity( Self,parent )
+		Local copy:=OnCopy( parent )
 		
 		CopyTo( copy )
 		
-		return copy
+		Return copy
 	End
 	
 	#rem monkeydoc Sequence id.
@@ -80,6 +80,7 @@ Class Entity Extends DynamicObject
 	
 	#rem monkeydoc Entity name.
 	#end
+	[jsonify=1]
 	Property Name:String()
 		
 		Return _name
@@ -142,8 +143,25 @@ Class Entity Extends DynamicObject
 		Return _children.ToArray()
 	End
 
+#rem	
+	#rem monkeydoc Number of attached components.
+	#end
+	Property NumComponents:Int()
+		
+		Return _components.Length
+	End
+#end
+	
+	#rem monkeydoc Array of attached components.
+	#end
+	Property Components:Component[]()
+		
+		Return _components.ToArray()
+	End
+
 	#rem monkeydoc Visibility flag.
 	#end
+	[jsonify=1]
 	Property Visible:Bool()
 		
 		Return _visible
@@ -173,6 +191,7 @@ Class Entity Extends DynamicObject
 	
 	#rem monkeydoc Master color.
 	#end
+	[jsonify=1]
 	Property Color:Color()
 		
 		Return _color
@@ -184,6 +203,7 @@ Class Entity Extends DynamicObject
 	
 	#rem monkeydoc Master alpha.
 	#end
+	[jsonify=1]
 	Property Alpha:Float()
 		
 		Return _alpha
@@ -281,6 +301,7 @@ Class Entity Extends DynamicObject
 	The local matrix combines the local position, orientation and scale of the entity into a single affine 4x4 matrix.
 	
 	#end
+	[jsonify=1]
 	Property LocalMatrix:AffineMat4f()
 		
 		If _dirty & Dirty.M
@@ -345,6 +366,20 @@ Class Entity Extends DynamicObject
 		Invalidate()
 	End
 
+	#rem monkeydoc Finds an entity with the given name.
+	#end
+	Method Find:Entity( name:String )
+		
+		If _name=name Return Self
+		
+		For Local child:=Eachin _children
+			Local found:=child.Find( name )
+			If found Return found
+		Next
+		
+		Return Null
+	End
+	
 	#rem monkeydoc Destroys the entity and all of its children.
 	#end
 	Method Destroy()
@@ -426,8 +461,10 @@ Class Entity Extends DynamicObject
 	#rem monkeydoc Copy constructor
 	#end
 	Method New( entity:Entity,parent:Entity )
+		
 		Self.New( parent )
 		
+		_name="Copy of "+entity._name
 		_t=entity._t
 		_r=entity._r
 		_s=entity._s
@@ -435,6 +472,11 @@ Class Entity Extends DynamicObject
 		Invalidate()
 	End
 	
+	Method OnCopy:Entity( parent:Entity ) Virtual
+		
+		Return New Entity( Self,parent )
+	End
+		
 	#rem monkeydoc Invoked when entity transitions from hidden->visible.
 	#end
 	Method OnShow() Virtual
@@ -461,7 +503,7 @@ Class Entity Extends DynamicObject
 		_lastCopy=copy
 		
 		For Local child:=Eachin _children
-			child.Copy( copy )
+			child.CopyTo( child.OnCopy( copy ) )
 		Next
 		
 		'should really be different pass...ie: ALL entities should be copied before ANY components?
@@ -477,6 +519,21 @@ Class Entity Extends DynamicObject
 	End
 	
 	Internal
+	
+	Method AddInstance()
+		
+		If _scene.Editing _scene.Jsonifier.AddInstance( Self,New Variant[]( _parent ) )
+	End
+	
+	Method AddInstance( entity:Entity )
+		
+		If _scene.Editing _scene.Jsonifier.AddInstance( Self,New Variant[]( entity,_parent ) )
+	End
+	
+	Method AddInstance( args:Variant[] )
+		
+		If _scene.Editing _scene.Jsonifier.AddInstance( Self,args )
+	End
 	
 	Method AddComponent( c:Component )
 		

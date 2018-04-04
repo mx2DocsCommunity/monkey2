@@ -1,5 +1,34 @@
 
+***** Monkey2 v2018.03 Mx2cc v1.1.12 *****
+
+Experimental mojo3d scene loading and saving added. Only very minimal support right now, eg: physics components are not yet supported and no texture or model loading support.
+
+See mojo3d/tests/loadscene.monkey2 for a demo. This should also create a test-scene.mojo3d file in your monkey2 dir which you can double click to open in latest ted2go (the version included in the monkey2 repos).
+
+To save a scene, you need to enabled mojo3d reflection by adding this to your file:
+
+#Reflect mojo3d
+
+You also need to enable 'editing' mode in your code with something like _scene.Editing=True before creating scene contents. Once you've created your scene, save it using the Scene.Save( path:String ) method. Ditto you can load a scene using the Scene.Load:Scene( path:String ) function.
+
+Typeinfo.Name now always returns proper typename even if reflection info disabled and even for generic types. Typeinfo.Name used to return a 'unknown@12345678' style string.
+
+String.ToUpper, String.ToLower and String.Capitalize now use java equivalents internally on android 'coz NDK doesn't support locales.
+
+Updated MX2_MSVC_TOOLS_DIR in env_windows.txt for latest Visual Studio Community Edition 2017 update (15.6.2).
+
+Added AngelFont and ImageFont support. Font.Load tries to guess correct font type via file extension but you can use ImageFont.Load and AngelFont.Load directly if you want. Changed monochrome font texture format to I8.
+
+Fixed PATH growing when updating modules in ted2go.
+
+
 ***** Monkey2 v1.1.11 *****
+
+Major change to name munging for tmp files to make them shorter.
+
+PbrMaterial.Load now handles jpg files too.
+
+Had another shot at an emscripten SDK and updated env_windows.txt to use it. Note if you were using a different version of emscripten, you'll need to removed the new env_windows.txt stuff or it'll conflict. The new SDK can be downloaded from http://monkeycoder.co.nz/monkey2-files/
 
 You can no longer access enum members via an enum member, eg: WindowFlags.Resizable.Maximized no longer works.
 

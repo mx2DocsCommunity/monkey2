@@ -8,23 +8,31 @@ Class Camera Extends Entity
 	#rem monkeydoc Creates a new camera.
 	#end	
 	Method New( parent:Entity=Null )
+		
 		Super.New( parent )
 		
+		Name="Camera"
 		Viewport=New Recti( 0,0,640,480 )
 		Near=.1
 		Far=100
 		FOV=90
 		
+		AddInstance()
+		
 		Visible=True
 	End
-	
+
 	Method New( view:View,parent:Entity=Null )
-		Super.New( parent )
 		
+		Super.New( parent )
+
+		Name="Camera"		
 		View=view
 		Near=.1
 		Far=100
 		FOV=90
+		
+		AddInstance()
 		
 		Visible=True
 	End
@@ -33,7 +41,7 @@ Class Camera Extends Entity
 	#end
 	Method Copy:Camera( parent:Entity=Null ) Override
 		
-		Local copy:=New Camera( Self,parent )
+		Local copy:=OnCopy( parent )
 		
 		CopyTo( copy )
 		
@@ -87,6 +95,7 @@ Class Camera Extends Entity
 	Defaults to 90.0.
 	
 	#end
+	[jsonify=1]
 	Property FOV:Float()
 	
 		Return _fov
@@ -105,6 +114,7 @@ Class Camera Extends Entity
 	The ratio of Far/Near clip planes should be kept as low as possible to reduce numerical precision errors.
 	
 	#end
+	[jsonify=1]
 	Property Near:Float()
 	
 		Return _near
@@ -123,6 +133,7 @@ Class Camera Extends Entity
 	The ratio of Far/Near clip planes should be kept as low as possible to reduce numerical precision errors.
 	
 	#end
+	[jsonify=1]
 	Property Far:Float()
 	
 		Return _far
@@ -158,7 +169,11 @@ Class Camera Extends Entity
 	#end
 	Method Render( canvas:Canvas )
 		
-		If _view SetViewport( _view.Rect )
+		If _view
+			SetViewport( _view.Rect )
+		Else
+			SetViewport( New Recti( 0,0,canvas.RenderBounds.Size ) )
+		Endif
 		
 		Local target:=canvas.GraphicsDevice.RenderTarget
 		
@@ -166,6 +181,8 @@ Class Camera Extends Entity
 		
 '		Local viewport:=canvas.RenderMatrix * Viewport
 		Local viewport:=canvas.RenderBounds
+		
+'		Print "camera viewport="+viewport
 		
 		canvas.Flush()
 		
@@ -183,6 +200,8 @@ Class Camera Extends Entity
 		Local ndc_coords:=clip_coords.XY/clip_coords.w
 		
 		Local vp_coords:=Cast<Vec2f>( Viewport.Size ) * (ndc_coords * 0.5 + 0.5)
+		
+		vp_coords.y=Viewport.Height-vp_coords.y-1
 	
 		Return vp_coords
 	End
@@ -190,6 +209,8 @@ Class Camera Extends Entity
 	#rem monkeydoc Converts a point from viewport coordinates to world coordinates.
 	#end
 	Method UnprojectFromViewport:Vec3f( viewportCoords:Vec2f )
+
+		viewportCoords.y=Viewport.Height-viewportCoords.y-1
 	
 		Local vp_coords:=viewportCoords / Cast<Vec2f>( Viewport.Size ) * 2.0 - 1.0
 	
@@ -234,12 +255,20 @@ Class Camera Extends Entity
 	Protected
 
 	Method New( camera:Camera,parent:Entity )
+		
 		Super.New( camera,parent )
 		
 		Viewport=camera.Viewport
 		Near=camera.Near
 		Far=camera.Far
 		FOV=camera.FOV
+		
+		AddInstance( camera )
+	End
+	
+	Method OnCopy:Camera( parent:Entity ) Override
+		
+		Return New Camera( Self,parent )
 	End
 	
 	Method OnShow() Override

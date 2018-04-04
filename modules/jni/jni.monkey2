@@ -55,18 +55,31 @@ Class JNIEnv Extends Void
 	Method GetBooleanField:Bool( obj:jobject,fieldID:jfieldID )
 		
 	Method GetIntField:Int( obj:jobject,fieldID:jfieldID )
-		
-	Method GetObjectField:jobject( obj:jobject,fieldID:jfieldID )
+
+	Method GetFloatField:Float( obj:jobject,fieldID:jfieldID )
+
+	Method GetDoubleField:Double( obj:jobject,fieldID:jfieldID )
 
 	Method GetStringField:String( obj:jobject,fieldID:jfieldID ) Extension="bbJNI::GetStringField"
+
+	Method GetObjectField:jobject( obj:jobject,fieldID:jfieldID )
 		
-	
 	'static fields...
 	
 	Method GetStaticFieldID:jfieldID( clazz:jclass,name:CString,sig:CString )
 	
+	Method GetStaticBooleanField:Bool( obj:jobject,fieldID:jfieldID )
+		
+	Method GetStaticIntField:Int( obj:jobject,fieldID:jfieldID )
+
+	Method GetStaticFloatField:Float( obj:jobject,fieldID:jfieldID )
+
+	Method GetStaticDoubleField:Double( obj:jobject,fieldID:jfieldID )
+
+	Method GetStaticStringField:String( clazz:jclass,fieldID:jfieldID ) Extension="bbJNI::GetStaticStringField"
+
 	Method GetStaticObjectField:jobject( clazz:jclass,fieldID:jfieldID )
-	
+		
 	'methods...
 	'
 	Method GetMethodID:jmethodID( clazz:jclass,name:CString,sig:CString )
@@ -76,10 +89,14 @@ Class JNIEnv Extends Void
 	Method CallBooleanMethod:Bool( obj:jobject,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallBooleanMethod"
 
 	Method CallIntMethod:Int( obj:jobject,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallIntMethod"
+		
+	Method CallFloatMethod:Float( obj:jobject,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallFloatMethod"
 
-	Method CallObjectMethod:jobject( obj:jobject,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallObjectMethod"
+	Method CallDoubleMethod:Double( obj:jobject,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallDoubleMethod"
 	
 	Method CallStringMethod:String( obj:jobject,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStringMethod"
+
+	Method CallObjectMethod:jobject( obj:jobject,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallObjectMethod"
 
 	'static methods...
 	'
@@ -90,11 +107,15 @@ Class JNIEnv Extends Void
 	Method CallStaticBooleanMethod:Bool( clazz:jclass,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStaticBooleanMethod"
 
 	Method CallStaticIntMethod:int( clazz:jclass,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStaticIntMethod"
+		
+	Method CallStaticFloatMethod:Float( clazz:jclass,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStaticFloatMethod"
+
+	Method CallStaticDoubleMethod:Double( clazz:jclass,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStaticDoubleMethod"
 
 	Method CallStaticStringMethod:String( clazz:jclass,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStaticStringMethod"
-	
-	Method CallStaticObjectMethod:jobject( clazz:jclass,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStaticObjectMethod"
 
+	Method CallStaticObjectMethod:jobject( clazz:jclass,methodID:jmethodID,args:Variant[] ) Extension="bbJNI::CallStaticObjectMethod"
+	
 	'ctors...
 	'
 	Method AllocObject:jobject( clazz:jclass )

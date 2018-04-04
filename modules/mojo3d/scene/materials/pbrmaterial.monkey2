@@ -65,19 +65,25 @@ Class PbrMaterial Extends Material
 	End
 	
 	Method New( color:Color,metalness:Float=1.0,roughness:Float=1.0,boned:Bool=False )
+		
 		Self.New( boned )
 		
 		ColorFactor=color
 		MetalnessFactor=metalness
 		RoughnessFactor=roughness
+		
+		AddInstance( New Variant[]( color,metalness,roughness,boned ) )
 	End
 	
 	Method New( material:PbrMaterial )
+		
 		Super.New( material )
 		
 		_textured=material._textured
 		_bumpmapped=material._bumpmapped
 		_boned=material._boned
+		
+		AddInstance( material )
 	End
 	
 	#rem monkeydoc Creates a copy of the pbr material.
@@ -170,7 +176,7 @@ Class PbrMaterial Extends Material
 	End
 	
 	'***** factors *****
-
+	[jsonify=1]
 	Property ColorFactor:Color()
 	
 		Return Uniforms.GetColor( "ColorFactor" )
@@ -180,6 +186,7 @@ Class PbrMaterial Extends Material
 		Uniforms.SetColor( "ColorFactor",color )
 	End
 	
+	[jsonify=1]
 	Property EmissiveFactor:Color()
 	
 		Return Uniforms.GetColor( "EmissiveFactor" )
@@ -189,6 +196,7 @@ Class PbrMaterial Extends Material
 		Uniforms.SetColor( "EmissiveFactor",color )
 	End
 	
+	[jsonify=1]
 	Property MetalnessFactor:Float()
 	
 		Return Uniforms.GetFloat( "MetalnessFactor" )
@@ -198,6 +206,7 @@ Class PbrMaterial Extends Material
 		Uniforms.SetFloat( "MetalnessFactor",factor )
 	End
 	
+	[jsonify=1]
 	Property RoughnessFactor:Float()
 	
 		Return Uniforms.GetFloat( "RoughnessFactor" )
@@ -223,35 +232,39 @@ Class PbrMaterial Extends Material
 		
 		Local material:=New PbrMaterial
 		
-		Local texture:=Texture.Load( path+"/color.png",textureFlags )
+		Local scene:=Scene.GetCurrent()
+		If scene.Editing 
+			scene.Jsonifier.AddInstance( material,"mojo3d.PbrMaterial.Load",New Variant[]( path,textureFlags ) )
+		Endif
+		
+		Local texture:=LoadTexture( path,"color",textureFlags )
 		If texture
 			material.ColorTexture=texture
 		Endif
 		
-		texture=Texture.Load( path+"/emissive.png",textureFlags )
+		texture=LoadTexture(path,"emissive",textureFlags )
 		If texture
 			material.EmissiveTexture=texture
 			material.EmissiveFactor=Color.White
 		Endif
 		
-		texture=Texture.Load( path+"/metalness.png",textureFlags )
+		texture=LoadTexture( path,"metalness",textureFlags )
 		If texture
 			material.MetalnessTexture=texture
 		Endif
 		
-		texture=Texture.Load( path+"/roughness.png",textureFlags )
+		texture=LoadTexture( path,"roughness",textureFlags )
 		If texture
 			material.RoughnessTexture=texture
-			Print "Loaded roughness:"+path
 		Endif
 		
-		texture=Texture.Load( path+"/occlusion.png",textureFlags )
+		texture=LoadTexture( path,"occlusion",textureFlags )
 		If texture
 			material.OcclusionTexture=texture
 		Endif
 		
-		texture=Texture.Load( path+"/normal.png",textureFlags )
-		If Not texture texture=Texture.Load( path+"/unormal.png",textureFlags,True )
+		texture=LoadTexture( path,"normal",textureFlags )
+		If Not texture texture=LoadTexture( path,"unormal",textureFlags,True )
 		If texture
 			material.NormalTexture=texture
 		Endif
@@ -278,6 +291,15 @@ Class PbrMaterial Extends Material
 	Field _shadowShader:Shader
 	
 	Field _dirty:=True
+	
+	Function LoadTexture:Texture( path:String,name:String,flags:TextureFlags,flipy:Bool=False )
+		
+		Local texture:=Texture.Load( path+"/"+name+".png",flags,flipy )
+		
+		If Not texture texture=Texture.Load( path+"/"+name+".jpg",flags,flipy )
+			
+		Return texture
+	End
 	
 	Method ValidateShaders()
 		

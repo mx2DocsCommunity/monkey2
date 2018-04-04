@@ -13,23 +13,7 @@ Struct Glyph
 	Field rect:Recti
 	Field offset:Vec2f
 	Field advance:Float
-
-	#rem monkeydoc Creates a new glyph.
-	#end
-	Method New( rect:Recti,offset:Vec2f,advance:Float )
-		Self.rect=rect
-		Self.offset=offset
-		Self.advance=advance
-	End
-
-End
-
-#rem monkeydoc @hidden
-#end
-Class GlyphPage
-
-	Field image:Image
-	Field glyphs:Glyph[]
+	Field page:Int
 
 End
 
@@ -43,116 +27,92 @@ Once a font is loaded it can be used with a canvas via the [[Canvas.Font]] prope
 
 #end
 Class Font Extends Resource
-
+	
 	#rem monkeydoc The font height in pixels.
 	#end
 	Property Height:Float()
 	
 		Return _height
 	End
+
+	#rem monkeydoc The first character in the font.
+	#end
+	Property FirstChar:Int()
+		
+		Return _firstChar
+	End
+	
+	#rem monkeydoc The number of characters in the font.
+	#end
+	Property NumChars:Int()
+		
+		Return _numChars
+	End
+	
+	#rem monkeydoc Gets the glyph for a character.
+	#end
+	Method GetGlyph:Glyph( char:Int ) Abstract
+
+	#rem monkeydoc Gets the glyph page for a character.
+	#end
+	Method GetGlyphPage:Image( char:Int ) Abstract
+	
+	#rem monkeydoc Gets the kerning between 2 characters.
+	#end
+	Method GetKerning:Float( firstChar:Int,secondChar:Int ) Virtual
+		Return 0
+	End
 	
 	#rem monkeydoc Measures the width of some text when rendered by the font.
 	#end
 	Method TextWidth:Float( text:String )
-		Local w:=0.0
+		
+		Local w:=0.0,lastChar:=0
+
 		For Local char:=Eachin text
-			w+=GetGlyph( char ).advance
+			w+=GetKerning( lastChar,char )+GetGlyph( char ).advance
+			lastChar=char
 		Next
+		
 		Return w
 	End
 
-	#rem monkeydoc @hidden
-	
-	Gets the glyph page for a given char.
-	
-	Returns null if char does not have a glyph.
-	
-	#end	
-	Method GetGlyphPage:GlyphPage( char:Int )
-		Local page:=char Shr 8
-		If page<0 Or page>=_pages.Length Return Null
-		
-		Local gpage:=_pages[page]
-		If Not gpage Return Null
-		
-		If Not gpage.image LoadGlyphPage( page )
-				
-		Local index:=char & 255
-		If index>=gpage.glyphs.Length Return Null
-		
-		Return gpage
-	End
-	
-	#rem monkeydoc @hidden
-	
-	Gets the glyph for a given char.
-
-	#end
-	Method GetGlyph:Glyph( char:Int )
-		Local page:=char Shr 8
-		If page<0 Or page>=_pages.Length Return _nullGlyph
-
-		Local gpage:=_pages[page]
-		If Not gpage Return _nullGlyph
-
-		If Not gpage.image LoadGlyphPage( page )
-				
-		Local index:=char & 255
-		If index>=gpage.glyphs.Length Return _nullGlyph
-		
-		Return gpage.glyphs[index]
-	End
-	
 	#rem monkeydoc Loads a font from a file.
 	#end
-	Function Load:Font( path:String,height:Float,shader:Shader=Null,textureFlags:TextureFlags=TextureFlags.FilterMipmap )
-	
-		If Not shader shader=Shader.GetShader( "font" )
+	Function Load:Font( path:String,size:Float,shader:Shader=Null,textureFlags:TextureFlags=TextureFlags.FilterMipmap )
 		
-		Local font:=FreeTypeFont.Load( path,height,shader,textureFlags )
-		If Not font And Not ExtractRootDir( path ) font=FreeTypeFont.Load( "font::"+path,height,shader,textureFlags )
+		Local font:Font
+		
+		Select ExtractExt( path )
+		Case ".ttf",".otf",".fon"
+			font=FreeTypeFont.Load( path,size,shader,textureFlags )
+		Case ".fnt"
+			font=AngelFont.Load( path,shader,textureFlags )
+		Case ""
+			font=FreeTypeFont.Load( path+".ttf",size,shader,textureFlags )
+			If Not font 
+				font=FreeTypeFont.Load( path+".otf",size,shader,textureFlags )
+				If Not font font=FreeTypeFont.Load( path+".fon",size,shader,textureFlags )
+			Endif
+		End
 		
 		Return font
 	End
 	
 	Protected
 	
-	Method OnLoadGlyphPage( page:Int,gpage:GlyphPage ) Abstract
-	
-	Method InitFont( height:Float,pages:GlyphPage[] )
-	
+	Method Init( height:Float,firstChar:Int,numChars:Int )
+		
 		_height=height
-		_pages=pages
-		
-		LoadGlyphPage( 0 )
-		
-		_nullGlyph=GetGlyph( 0 )
-	End
-	
-	Method OnDiscard() Override
-
-		For Local page:=Eachin _pages
-			If page.image page.image.Discard()
-		Next
-		
-		_pages=Null
+		_firstChar=firstChar
+		_numChars=numChars
 	End
 	
 	Private
 	
 	Field _height:Float
-
-	Field _pages:GlyphPage[]
-	
-	Field _nullGlyph:Glyph
-	
-	Method LoadGlyphPage( page:Int )
-	
-		Local gpage:=_pages[page]
-		
-		If Not gpage.image OnLoadGlyphPage( page,gpage )
-	End
-
+	Field _firstChar:Int
+	Field _numChars:Int
 End
 
 Class ResourceManager Extension
