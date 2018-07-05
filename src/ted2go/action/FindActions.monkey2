@@ -52,8 +52,13 @@ Class FindActions
 		
 		findInFiles=New Action( "Find in files..." )
 		findInFiles.Triggered=Lambda()
-			Local proj:=projView.FindProjectByFile( docs.CurrentDocument.Path )
+			
+			Local path:=docs.CurrentDocument?.Path
+			If Not path Then path=projView.SelectedItem?.Path
+			
+			Local proj:=ProjectView.FindProject( path )?.Folder
 			OnFindInFiles( "",proj )
+			
 		End
 		findInFiles.HotKey=Key.F
 		findInFiles.HotKeyModifiers=Modifier.Menu|Modifier.Shift

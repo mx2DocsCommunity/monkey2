@@ -22,13 +22,14 @@ Global opts_time:Bool
 
 Global StartDir:String
 
-'Const TestArgs:="mx2cc makemods"' pyro-framework"
+Global profileName:String
+
+'Const TestArgs:="mx2cc makemods monkey"
+
+'Const TestArgs:="mx2cc makemods"' -clean mojo"
+'Const TestArgs:="mx2cc makedocs std"
  
 Const TestArgs:="mx2cc makeapp src/mx2cc/test.monkey2"
-
-'Const TestArgs:="mx2cc makeapp D:\Plane-Demo-master\Plane.monkey2"
-
-'Const TestArgs:="mx2cc makemods -target=ios"' monkey libc"
 
 Function Main()
 	
@@ -135,6 +136,8 @@ Function Main()
 		Local start:=std.time.Now()
 		
 		Select cmd
+		Case "geninfo"
+			ok=GenInfo( args )
 		Case "makeapp"
 			ok=MakeApp( args )
 		Case "makemods"
@@ -155,6 +158,49 @@ Function Main()
 	End
 	
 	If Not ok libc.exit_( 1 )
+End
+
+Function GenInfo:Bool( args:String[] )
+
+	Local opts:=New BuildOpts
+	opts.productType="module"
+	opts.target="desktop"
+	opts.config="debug"
+	opts.clean=False
+	opts.fast=True
+	opts.verbose=0
+	opts.passes=2
+	opts.geninfo=True
+	
+	args=ParseOpts( opts,args )
+	If args.Length<>1 Fail( "Invalid app source file" )
+	
+	Local cd:=CurrentDir()
+	ChangeDir( StartDir )
+	opts.mainSource=RealPath( args[0].Replace( "\","/" ) )
+	ChangeDir( cd )
+	
+	Print ""
+	Print "***** Generating info for "+opts.mainSource+"' "+profileName+" *****"
+	Print ""
+
+	New BuilderInstance( opts )
+	
+	Builder.Parse()
+	If opts.passes=1
+		Local gen:=New GeninfoGenerator
+		Local jobj:=gen.GenParseInfo( Builder.mainModule.fileDecls[0] )
+		Print jobj.ToJson()
+		Return Builder.errors.Length=0
+	Endif
+	If Builder.errors.Length Return False
+	
+	Builder.Semant()
+	
+	Local gen:=New GeninfoGenerator
+	gen.GenSemantInfo()
+	
+	Return Builder.errors.Length=0
 End
 
 Function MakeApp:Bool( args:String[] )
@@ -184,33 +230,23 @@ Function MakeApp:Bool( args:String[] )
 	opts.mainSource=srcPath
 	
 	Print ""
-	Print "***** Making app '"+opts.mainSource+"' ("+opts.target+" "+opts.config+" "+opts.arch+" "+opts.toolchain+") *****"
+	Print "***** Making app '"+opts.mainSource+"' "+profileName+" *****"
 	Print ""
 
 	New BuilderInstance( opts )
-	
+
+	'pass1 	
 	Builder.Parse()
-	If opts.passes=1
-		If opts.geninfo
-			Local gen:=New ParseInfoGenerator
-			Local jobj:=gen.GenParseInfo( Builder.mainModule.fileDecls[0] )
-			Print jobj.ToJson()
-		Endif
-		Return True
-	Endif
+	If opts.passes=1 Return Builder.errors.Length=0
 	If Builder.errors.Length Return False
 	
 	Builder.Semant()
+	If opts.passes=2 Return Builder.errors.Length=0
 	If Builder.errors.Length Return False
-	If opts.passes=2
-		Return True
-	Endif
 	
 	Builder.Translate()
+	If opts.passes=3 Return Builder.errors.Length=0
 	If Builder.errors.Length Return False
-	If opts.passes=3
-		Return True
-	Endif
 	
 	Builder.product.Build()
 	If Builder.errors.Length Return False
@@ -253,7 +289,7 @@ Function MakeMods:Bool( args:String[] )
 		If Not path Fail( "Module '"+modid+"' not found" )
 	
 		Print ""
-		Print "***** Making module '"+modid+"' ("+opts.target+" "+opts.config+" "+opts.arch+" "+opts.toolchain+") *****"
+		Print "***** Making module '"+modid+"' "+profileName+" *****"
 		Print ""
 		
 		opts.mainSource=RealPath( path )
@@ -454,8 +490,10 @@ Function ParseOpts:String[]( opts:BuildOpts,args:String[] )
 		
 	opts.wholeArchive=Int( GetEnv( "MX2_WHOLE_ARCHIVE" ) )
 		
-	opts.toolchain="gcc"
+	opts.threads=Int( GetEnv( "MX2_THREADS" ) )
 		
+	opts.toolchain="gcc"
+	
 	Select opts.target
 	Case "windows"
 		
@@ -536,6 +574,8 @@ Function ParseOpts:String[]( opts:BuildOpts,args:String[] )
 	Default
 		Fail( "Unrecognized apptype '"+opts.appType+"'" )
 	End
+	
+	profileName="("+opts.target+" "+opts.config+" "+opts.arch+" "+opts.toolchain+(opts.threads ? " mx" Else "")+")"
 		
 	Return args
 End

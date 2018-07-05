@@ -229,6 +229,9 @@ Class btDynamicsWorld Extends btCollisionWorld
 		
 	Method removeRigidBody( body:btRigidBody ) Virtual
 		
+	Method addConstraint( constraint:btTypedConstraint,disableCollisionsBetweenLinkedBodies:Bool=False )
+		
+	Method removeConstraint( constraint:btTypedConstraint )
 End
 
 Class btDiscreteDynamicsWorld Extends btDynamicsWorld
@@ -272,6 +275,10 @@ Class btConvexInternalShape Extends btConvexShape
 End
 
 Class btPolyhedralConvexShape Extends btConvexInternalShape
+End
+
+Class btEmptyShape Extends btConcaveShape
+	
 End
 
 Class btBoxShape Extends btPolyhedralConvexShape
@@ -343,6 +350,14 @@ Class btConeShapeZ Extends btConeShape
 			
 End
 
+Class btConvexHullShape Extends btConvexShape
+	
+	Method New( points:btScalar Ptr,numPoints:Int,stride:Int )
+		
+'	Method addPoint( point:btVector3,recalculateLocalAabb:Bool=True )
+	
+End
+
 Enum PHY_ScalarType
 End
 
@@ -359,7 +374,7 @@ Class btHeightfieldTerrainShape Extends btConcaveShape
 
 	Method setUseDiamondSubdivision( useDiamondSubdivision:Bool=True )	
 
-	Method setUseZigZagSubdivision( useZigZagSubdivision:Bool=True )	
+	Method setUseZigzagSubdivision( useZigZagSubdivision:Bool=True )	
 End
 
 Class btTriangleMeshShape Extends btConcaveShape
@@ -521,6 +536,8 @@ Class btRigidBody Extends btCollisionObject
 		
 	Method setMassProps( mass:btScalar,inertia:btVector3 )
 		
+	Method updateInertiaTensor()
+		
 	Method getInvMass:btScalar()
 		
 	Method setGravity( acceleration:btVector3 )
@@ -531,10 +548,10 @@ Class btRigidBody Extends btCollisionObject
 		
 	Method setLinearVelocity( lin_vel:btVector3 )
 		
-	Method setAngularVelocity( ang_vel:btVector3 )
-	
 	Method getLinearVelocity:btVector3()
 		
+	Method setAngularVelocity( ang_vel:btVector3 )
+	
 	Method getAngularVelocity:btVector3()
 		
 	Method applyForce( force:btVector3,rel_pos:btVector3 )
@@ -548,6 +565,82 @@ Class btRigidBody Extends btCollisionObject
 	Method applyTorque( torque:btVector3 )
 		
 	Method applyTorqueImpulse( torque:btVector3 )
+		
+	Method setDamping( lin_damping:btScalar,ang_damping:btScalar )
+		
+	Method getLinearDamping:btScalar()
+		
+	Method getAngularDamping:btScalar()
+		
+	Method getLinearFactor:btVector3()
+		
+	Method setLinearFactor( factor:btVector3 )
+		
+	Method getAngularFactor:btVector3()
+		
+	Method setAngularFactor( factor:btVector3 )
+		
+End
+
+Const BT_CONSTRAINT_ERP:Int
+Const BT_CONSTRAINT_STOP_ERP:Int
+Const BT_CONSTRAINT_CFM:Int
+Const BT_CONSTRAINT_STOP_CFM:Int
+
+Class btTypedConstraint Extends btObject
+	
+	Method setParam( num:Int,value:btScalar,axis:Int=-1 )
+
+	Method getParam:btScalar( num:Int,axis:Int=-1 )
+End
+
+Class btPoint2PointConstraint Extends btTypedConstraint="bbBullet::Point2PointConstraint"
+	
+	Method New( rbA:btRigidBody,rbB:btRigidBody,pivotInA:btVector3,pivotInB:btVector3 )
+
+	Method New( rbA:btRigidBody,pivotInA:btVector3 )
+		
+	Method setPivotA( pivotA:btVector3 )
+		
+	Method setPivotB( pivotB:btVector3 )
+		
+	Method getPivotA:btVector3()
+		
+	Method getPivotB:btVector3()
+		
+End
+
+Class btHingeConstraint Extends btTypedConstraint="bbBullet::HingeConstraint"
+
+ 	method New( rbA:btRigidBody,rtB:btRigidBody,pivotInA:btVector3,pivotInB:btVector3,axisInA:btVector3,axisInB:btVector3,useReferenceFrameA:Bool=False)
+ 
+ 	Method New( rbA:btRigidBody,pivotInA:btVector3,axisInA:btVector3,useReferenceFrameA:Bool=False)
+ 
+ 	Method New( rbA:btRigidBody,rbB:btRigidBody,rbAFrame:btTransform,rbBFrame:btTransform,useReferenceFrameA:Bool=False )
+ 	
+ 	Method New( rbA:btRigidBody,rbAFrame:btTransform,useReferenceFrameA:Bool=False )
+	 	
+	Method getFrameOffsetA:btTransform()
+		
+	Method getFrameOffsetB:btTransform()
+		
+	Method getLowerLimit:btScalar()
+		
+	Method getUpperLimit:btScalar()
+		
+	Method setLimit( low:btScalar,high:btScalar,_softness:btScalar=.9,_biasFactor:btScalar=.3,_relaxationFactor:btScalar=1.0 )
+End
+
+Class btSliderConstraint Extends btTypedConstraint="bbBullet::SliderConstraint"
+	
+	Method New( rbA:btRigidBody,rbB:btRigidBody,frameInA:btTransform,frameInB:btTransform,useLinearReferenceFrameA:Bool )
+ 
+	Method New( rbB:btRigidBody,frameInB:btTransform,useLinearReferenceFrameA:Bool )
+End
+
+Class btFixedConstraint Extends btTypedConstraint="bbBullet::FixedConstraint"
+	
+	Method New( rbA:btRigidBody,rbB:btRigidBody,frameInA:btTransform,frameInB:btTransform )
 		
 End
 

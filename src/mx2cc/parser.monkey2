@@ -21,6 +21,19 @@ Class Parser
 	End	
 
 	Method ParseFile:FileDecl( ident:String,srcPath:String,ppsyms:StringMap<String> )
+		
+		Local gpath:=""
+		
+		If Builder.opts.geninfo
+			
+			Local dir:=ExtractDir( srcPath )+".mx2/"
+			Local name:=StripDir( srcPath )
+			Local path:=dir+name
+			
+			If GetFileType( path )=FileType.File srcPath=path
+				
+			gpath=StripExt( path )+".geninfo"
+		Endif
 	
 		_ppsyms=ppsyms
 		
@@ -30,6 +43,7 @@ Class Parser
 		_fdecl=New FileDecl
 		_fdecl.ident=ident
 		_fdecl.path=srcPath
+		_fdecl.gpath=gpath
 		_fdecl.nmspace=""
 		
 		Local source:=LoadString( srcPath )
@@ -229,21 +243,6 @@ Class Parser
 		Return decls.ToArray()
 	End
 	
-	#rem
-	Method CParseAccess:Int( flags:Int )
-	
-		Select Toke
-		Case "public" flags=flags & ~(DECL_ACCESSMASK) | DECL_PUBLIC
-		Case "private" flags=flags & ~(DECL_ACCESSMASK) | DECL_PRIVATE
-		Case "internal" flags=flags & ~(DECL_ACCESSMASK) | DECL_INTERNAL
-		Case "protected" flags=flags & ~(DECL_ACCESSMASK) | DECL_PROTECTED
-		Default Return flags
-		End
-		Bump()
-		Return flags
-	End
-	#end
-	
 	Method ParseAliases( decls:Stack<Decl>,flags:Int )
 	
 		Local kind:=Parse()
@@ -263,6 +262,10 @@ Class Parser
 				
 				Parse( ":" )
 				decl.type=ParseType()
+
+				If flags & DECL_EXTERN
+					If CParse( "=" ) decl.symbol=ParseString()
+				Endif
 				
 				decl.endpos=EndPos
 				decls.Push( decl )
@@ -958,8 +961,6 @@ Class Parser
 	
 	Method ParseFor:ForStmtExpr()
 	
-		Local srcpos:=SrcPos
-		
 		Local varIdent:String
 		Local varType:Expr
 		Local varExpr:Expr
@@ -968,10 +969,16 @@ Class Parser
 		Local cond:Expr
 		Local incr:Expr
 		
+		Local srcpos:=SrcPos
+		
+		Local vsrcpos:=srcpos
+		
 		Try
 			Parse( "for" )
 			
 			If CParse( "local" )
+				
+				vsrcpos=SrcPos
 			
 				varIdent=ParseIdent()
 				
@@ -1019,6 +1026,8 @@ Class Parser
 			
 		End
 		
+		Local vendpos:=SrcPos
+		
 		Local stmts:=ParseStmts( True )
 		
 		Try
@@ -1028,7 +1037,7 @@ Class Parser
 			SkipToNextLine()
 		End
 		
-		Return New ForStmtExpr( varIdent,varType,varExpr,kind,init,cond,incr,stmts,srcpos,EndPos )
+		Return New ForStmtExpr( varIdent,varType,varExpr,kind,init,cond,incr,stmts,srcpos,EndPos,vsrcpos,vendpos )
 	
 	End
 	
@@ -1049,9 +1058,13 @@ Class Parser
 			SkipToNextLine()
 		End
 		
-		Local cases:=New Stack<CaseExpr>
+		Local cases:=New Stack<CaseStmtExpr>
 		
-		While CParse( "case" )
+		While Toke="case"
+			
+			Local srcpos:=SrcPos
+			
+			Bump()
 
 			Local exprs:=New Stack<Expr>
 
@@ -1070,18 +1083,22 @@ Class Parser
 			
 			Local stmts:=ParseStmts( True )
 			
-			cases.Push( New CaseExpr( exprs.ToArray(),stmts ) )
+			cases.Push( New CaseStmtExpr( exprs.ToArray(),stmts,srcpos,SrcPos ) )
 		Wend
 		
 		If cases.Empty ErrorNx( "Select statement must have at least one case" )
-		
-		If CParse( "default" )
+			
+		If Toke="default"
+			
+			Local srcpos:=SrcPos
+			
+			Bump()
 		
 			CParseEol()
 		
 			Local stmts:=ParseStmts( True )
 			
-			cases.Push( New CaseExpr( Null,stmts ) )
+			cases.Push( New CaseStmtExpr( Null,stmts,srcpos,SrcPos ) )
 		Endif
 		
 		Try
@@ -1112,7 +1129,7 @@ Class Parser
 		
 		Local stmts:=ParseStmts( True )
 		
-		Local catches:=New Stack<CatchExpr>
+		Local catches:=New Stack<CatchStmtExpr>
 		
 		While Toke="catch"
 		
@@ -1137,7 +1154,7 @@ Class Parser
 			
 			Local stmts:=ParseStmts( True )
 			
-			catches.Push( New CatchExpr( varIdent,varType,stmts ) )
+			catches.Push( New CatchStmtExpr( varIdent,varType,stmts,srcpos,SrcPos ) )
 		Wend
 		
 		Try
@@ -1240,7 +1257,7 @@ Class Parser
 	
 	Method IsTypeIdent:Bool( ident:String )
 		Select ident
-		Case "void","bool","byte","ubyte","short","ushort","int","uint","long","ulong","float","double","string","object","throwable","variant","cstring","typeinfo"
+		Case "void","bool","byte","ubyte","short","ushort","int","uint","long","ulong","float","double","string","object","throwable","variant","cstring","wstring","typeinfo"
 			Return True
 		End
 		Return False
@@ -1505,7 +1522,13 @@ Class Parser
 				
 				tail.type=type
 				
-				Return New NewArrayExpr( head,sizes,Null,srcpos,EndPos )
+				Local inits:Expr[]
+				If CParse( "(" ) 
+					inits=ParseExprs()
+					Parse( ")" )
+				Endif
+				
+				Return New NewArrayExpr( head,sizes,inits,srcpos,EndPos )
 			Endif
 			
 			If Toke="("
@@ -2037,7 +2060,6 @@ Class Parser
 				
 				Continue
 				
-'			Else If _ccnest<>_ifnest
 			Else If _cc.Top<>1
 			
 				Local pos:=_toker.LinePos
@@ -2046,7 +2068,10 @@ Class Parser
 					_toker.Bump()
 				Wend
 				
-				If _doccing _docs.Push( _toker.Text.Slice( pos,_toker.TokePos ) )
+				If _doccing
+					Local text:=_toker.Text.Slice( pos,_toker.TokePos )
+					_docs.Push( text )
+				Endif
 
 				Continue
 				
@@ -2263,7 +2288,7 @@ Class Parser
 				
 			Case "rem"
 			
-				If _cc.Top=1 And p.Bump()="monkeydoc"
+				If _cc.Top=1 And p.Bump()="monkeydoc" And Builder.opts.makedocs
 
 					Local qhelp:=p._toker.Text.Slice( p._toker.TokePos+9 ).Trim()
 					_docs.Clear()

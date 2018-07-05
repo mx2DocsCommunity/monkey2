@@ -5,7 +5,8 @@ Namespace myapp
 #Import "<mojo>"
 #Import "<mojo3d>"
 
-#Import "assets/"
+#Import "assets/miramar-skybox.jpg"
+#Import "assets/spheres.gltf"
 
 Using std..
 Using mojo..
@@ -29,7 +30,7 @@ Class MyWindow Extends Window
 		
 		_scene=New Scene
 		
-		_scene.SkyTexture=Texture.Load( "asset::miramar-skybox.jpg",TextureFlags.FilterMipmap|TextureFlags.Cubemap )
+		_scene.SkyTexture=Texture.Load( "asset::miramar-skybox.jpg",TextureFlags.FilterMipmap|TextureFlags.Cubemap|TextureFlags.Envmap )
 		
 		'create camera
 		'
@@ -42,7 +43,10 @@ Class MyWindow Extends Window
 		'create light
 		'
 		_light=New Light
-		_light.RotateX( 60 )	'aim directional light 'downish'.
+		_light.Rotate( 54,144,0 )	'calibrated so specular highlight matches sun on sky texture!
+		
+		Local godrays:=New GodraysEffect( _light )
+		_scene.AddPostEffect( godrays )
 		
 		'create ground
 		'
@@ -54,7 +58,7 @@ Class MyWindow Extends Window
 		
 		'create spheres
 		
-		_spheres=Model.Load( "asset::spheres.gltf/MetalRoughSpheres.gltf" )
+		_spheres=Model.Load( "asset::MetalRoughSpheres.gltf" )
 		
 		_spheres.Move( 0,10,0 )
 		

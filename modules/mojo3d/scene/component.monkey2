@@ -82,6 +82,13 @@ Protected
 		If scene.Editing scene.Jsonifier.AddInstance( Self,New Variant[]( _entity ) )
 	End
 	
+	Method AddInstance( component:Component )
+		
+		Local scene:=_entity.Scene
+
+		If scene.Editing scene.Jsonifier.AddInstance( Self,New Variant[]( _entity,component ) )
+	End
+	
 Internal
 
 	Method OnCopy:Component( entity:Entity ) Virtual
@@ -98,6 +105,9 @@ Internal
 	End
 	
 	Method OnBeginUpdate() Virtual
+	End
+	
+	Method OnStart() Virtual
 	End
 	
 	Method OnUpdate( elapsed:Float ) Virtual

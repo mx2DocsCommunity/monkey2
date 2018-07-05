@@ -399,6 +399,14 @@ This type should only be used when declaring parameters for extern functions.
 Struct @CString="bbCString"
 End
 
+#rem monkeydoc String wrapper type for native 'wchar_t *' strings.
+
+This type should only be used when declaring parameters for extern functions.
+
+#end
+Struct @WString="bbWString"
+End
+
 #rem monkeydoc Variant type.
 
 The 'Variant' type is a primitive type that can be used to 'box' values of any type.
@@ -430,6 +438,29 @@ Struct @Variant="bbVariant"
 	
 	#end
 	Property EnumValue:Int()="enumValue"
+		
+	#rem monkeydoc Gets the length of an array.
+	
+	The type of the variant must be an array type, or a runtime error will occur.
+	
+	#end
+	Method GetArrayLength:Int()="getArrayLength"
+		
+	#rem monkeydoc Gets an element from an array.
+	
+	The type of the variant must be an array type, or a runtime error will occur.
+	
+	#end
+	Method GetArrayElement:Variant( index:Int )="getArrayElement"
+		
+	#rem monkeydoc Sets an element of an array.
+	
+	The type of the variant must be an array type, or a runtime error will occur.
+	
+	#end
+	Method SetArrayElement( index:Int,value:Variant )="setArrayElement"
+		
+	
 End
 
 #rem monkeydoc Primtive array type.
@@ -661,6 +692,12 @@ Class @TypeInfo Extends Void="bbTypeInfo"
 	
 	#end
 	Method MakeEnum:Variant( enumValue:Int )="makeEnum"
+		
+	
+	#rem monkeydoc Creates a new array of this type.
+	#end
+	Method NewArray:Variant( length:Int )="newArray"
+
 
 	#rem monkeydoc Gets a user defined type by name.
 	
@@ -747,4 +784,24 @@ Class DeclInfo Extends Void="bbDeclInfo"
 	#end
 	Method Invoke:Variant( instance:Variant,params:Variant[] )="invoke"
 End
+
+#rem monkeydoc Weak reference class.
+
+A weak reference is an object that contains a reference to another object, but without preventing the other object from being garbage collected.
+
+The [[Target]] property returns the object being referenced, or null if the object has been garbage collected.
+
+A weak reference must be contructed with the object it references.
+
+#end
+Class WeakRef="bbGCWeakRef"
+	
+	Method New( target:Object )
+		
+	Property Target:Object()="getTarget"
+End
+
+	
+
+
 

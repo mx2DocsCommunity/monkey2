@@ -6,13 +6,13 @@ Interface ICodeParser
 	
 	Method GetConstructors( item:CodeItem,target:Stack<CodeItem> )
 	Method RefineRawType( item:CodeItem )
-	Method ParseFile:String( filePath:String,pathOnDisk:String,moduleName:String )
+	Method ParseFile:String( params:ParseFileParams )
 	'Method ParseJson( json:String,filePath:String )
 	Method IsPosInsideOfQuotes:Bool( text:String,pos:Int )
 	Method CanShowAutocomplete:Bool( line:String,posInLine:Int )
-	Method GetScope:CodeItem( docPath:String,docLine:Int )
-	Method GetNearestScope:CodeItem( docPath:String,docLine:Int,above:Bool )
-	Method ItemAtScope:CodeItem( ident:String,filePath:String,docLine:Int )
+	Method GetScope:CodeItem( docPath:String,cursor:Vec2i )
+	Method GetNearestScope:CodeItem( docPath:String,cursor:Vec2i )
+	Method ItemAtScope:CodeItem( ident:String,filePath:String,cursor:Vec2i )
 	
 	Method GetItemsForAutocomplete( options:ParserRequestOptions )
 	Method CheckStartsWith:Bool( ident1:String,ident2:String )
@@ -60,9 +60,51 @@ End
 
 
 Function StripGenericType:String( ident:String )
+	
 	Local i:=ident.Find("<")
 	If i > 0 Return ident.Slice( 0,i )
 	Return ident
+End
+
+
+Function AddItems( items:Stack<CodeItem>,target:Stack<CodeItem>,checkUnique:Bool )
+
+	If Not items Return
+
+	If checkUnique' need to add unique
+		For Local i:=Eachin items
+
+			Local s:=i.Text
+			Local exists:=False
+			For Local ii:=Eachin target
+				If ii.Text = s
+					exists=True
+					Exit
+				Endif
+			End
+			If Not exists
+				target.Add( i )
+			Endif
+		Next
+	Else
+		target.AddAll( items )
+	Endif
+End
+
+
+Function ExtractExtensionItems( extMap:StringMap<Stack<CodeItem>>,item:CodeItem,target:Stack<CodeItem> )
+
+	If extMap.Empty Return
+
+	Local type:=item.Type.ident
+	Local list:=extMap[type]
+	If Not list
+		type=item.Ident
+		list=extMap[type]
+	Endif
+	If list
+		AddItems( list,target,True )
+	Endif
 End
 
 
@@ -70,12 +112,20 @@ Class ParserRequestOptions Final
 	
 	Field ident:String
 	Field filePath:String
-	Field docLineNum:Int
+	Field cursor:Vec2i
 	Field results:Stack<CodeItem>
 	Field usingsFilter:Stack<String>
 	Field docLineStr:String
-	Field docPosInLine:Int
 	Field intelliIdent:=True
+	
+End
+
+Class ParseFileParams
+	
+	Field filePath:String
+	'Field paths:String[]
+	Field moduleName:String
+	Field geninfo:Bool=True
 	
 End
 
@@ -102,7 +152,7 @@ Class FakeParser Implements ICodeParser
 	
 	Method GetConstructors( item:CodeItem,target:Stack<CodeItem> )
 	End
-	Method ParseFile:String( filePath:String,pathOnDisk:String,moduleName:String )
+	Method ParseFile:String( params:ParseFileParams )
 		'do nothing
 		Return Null
 	End
@@ -112,13 +162,13 @@ Class FakeParser Implements ICodeParser
 	Method CanShowAutocomplete:Bool( line:String,posInLine:Int )
 		Return True
 	End
-	Method GetScope:CodeItem( docPath:String,docLine:Int )
+	Method GetScope:CodeItem( docPath:String,cursor:Vec2i )
 		Return Null
 	End
-	Method GetNearestScope:CodeItem( docPath:String,docLine:Int,above:Bool )
+	Method GetNearestScope:CodeItem( docPath:String,cursor:Vec2i )
 		Return Null
 	End
-	Method ItemAtScope:CodeItem( ident:String,filePath:String,docLine:Int )
+	Method ItemAtScope:CodeItem( ident:String,filePath:String,cursor:Vec2i )
 		Return Null
 	End
 	Method RefineRawType( item:CodeItem )

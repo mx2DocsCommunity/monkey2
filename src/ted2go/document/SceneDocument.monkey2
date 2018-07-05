@@ -6,7 +6,6 @@ Namespace ted2go
 
 'just too brutal in debug mode!
 #If __RELEASE__
-#Reflect mojo.graphics
 #Reflect mojo3d
 #Endif
 
@@ -127,15 +126,16 @@ Class SceneDocument Extends Ted2Document
 	
 	Method OnLoad:Bool() Override
 		
-		If ExtractExt( Path )=".mojo3d"		
+		If ExtractExt( Path )=".mojo3d"
 			
 			Print "Loading scene from "+Path
 			
 			_scene=Scene.Load( Path )
 			
 			_camera=Cast<Camera>( _scene.FindEntity( "Camera" ) )
-'			If _camera _camera.View=_view
-				
+			
+			If _camera _camera.View=_view
+			
 			Return True
 		Endif
 		

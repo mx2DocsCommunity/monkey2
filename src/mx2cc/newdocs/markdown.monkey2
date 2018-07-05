@@ -17,64 +17,68 @@ Class MarkdownConvertor
 
 		_lineNum=0
 
+		_para=False
+		
 		_buf.Clear()
 		
 		For Local i:=0 Until _lines.Length
-	
 			_lines[i]=_lines[i].TrimEnd()
 		Next
 		
 		While Not AtEnd
 		
-			Local line:=NextLine()
+			Local line:=NextLine().Trim()
+			If Not line Continue
 		
 			If line.StartsWith( "#" )
+				
+				EndPara()
 			
 				EmitHeader( line )
 			
 			Else If line.StartsWith( "|" )
 			
+				EndPara()
+			
 				EmitTable( line )
 				
 			Else If line.StartsWith( "*" )
 			
+				EndPara()
+			
 				EmitList( line )
-				
-			Else If line.StartsWith( "```" )
-			
-				EmitCode( line )
-				
-			Else If line.StartsWith( "---" )
-			
-				Emit( "<hr class="+_cls+">" )
 				
 			Else If line.StartsWith( "<" )
 			
+				EndPara()
+			
 				Emit( line+"\" )
 				
-			Else If line
+			Else If line.StartsWith( "---" )
 			
-				If _lineNum>1 And _lines[_lineNum-2]=""
-					Emit( "<p class="+_cls+">"+Escape( line ) )
-				Else
-					Emit( Escape( line ) )
-				Endif
-
+				EndPara()
+			
+				Emit( "<hr class="+_cls+">" )
+				
+			Else If line.StartsWith( "```" ) Or line.ToLower().StartsWith( "<pre>" )
+			
+				EndPara()
+			
+				EmitCode( line )
+				
 			Else
 			
-'				If Not _buf.Empty And _buf.Top<>"<p>" Emit( "<p>" )
+				If Not _para Or (_lineNum>1 And _lines[_lineNum-2]="")
+					EndPara()
+					BeginPara()
+				Endif
 				
+				Emit( Escape( line ) )
 			Endif
 				
-'			Else 
-			
-'				If _buf.Empty Or _buf.Top="" Emit( "<p>" )
-			
-'				Emit( Escape( line ) )
-			
-'			Endif
-			
 		Wend
+		
+		EndPara()
 		
 		Local html:=_buf.Join( "~n" )
 		
@@ -99,8 +103,22 @@ Class MarkdownConvertor
 	Field _lineNum:=0
 	Field _buf:=New StringStack
 	
+	Field _para:Bool=False
+	
 	Property AtEnd:Bool()
 		Return _lineNum>=_lines.Length
+	End
+
+	Method BeginPara()
+		If _para Return
+		Emit( "<p class="+_cls+">" )
+		_para=True
+	End
+	
+	Method EndPara()
+		If Not _para Return
+		Emit( "</p>" )
+		_para=False
 	End
 	
 	Method Emit( str:String )
@@ -459,12 +477,13 @@ Class MarkdownConvertor
 		Emit( "<pre class="+_cls+"><code class="+_cls+">\" )
 	
 		While Not AtEnd
-		
+			
 			line=NextLine()
-			If line.StartsWith( "```" ) Exit
+			Local tline:=line.Trim()
+			
+			If tline.StartsWith( "```" ) Or tline.ToLower().StartsWith( "</pre>" ) Exit
 			
 			Emit( EscapeHtml( line ) )
-			
 		Wend
 		
 		Emit( "</code></pre>" )

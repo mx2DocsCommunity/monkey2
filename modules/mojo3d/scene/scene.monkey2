@@ -10,11 +10,15 @@ Class Scene
 	If there is no current scene when a new scene is created, the new scene becomes the current scene.
 		
 	#end
-	Method New()
+	Method New( editable:Bool=False )
 		
 		If Not _current _current=Self
+			
+		_editable=editable And TypeInfo.GetType( "mojo3d.Scene" )<>Null
 		
 		_clearColor=Color.Sky
+
+		_skyColor=Color.White
 
 		_ambientDiffuse=Color.DarkGrey
 		
@@ -22,13 +26,16 @@ Class Scene
 		
 		_world=New World( Self )
 		
-		Local type:=TypeInfo.GetType( "mojo3d.Scene" )
-		If type And type.Kind="Class"
+		If _editable
 			_jsonifier=New Jsonifier
-			_jsonifier.AddInstance( Self,New Variant[0] )
+			_jsonifier.AddInstance( Self,New Variant[]( true ) )
+			_editing=True
 		Endif
+	End
+	
+	Property World:World()
 		
-		_editing=False
+		Return _world
 	End
 	
 	#rem monkeydoc The sky texture.
@@ -40,7 +47,7 @@ Class Scene
 	This must currently be a valid cubemap texture.
 	
 	#end
-'	[jsonify=1]
+	[jsonify=1]
 	Property SkyTexture:Texture()
 		
 		Return _skyTexture
@@ -48,6 +55,23 @@ Class Scene
 	Setter( texture:Texture )
 		
 		_skyTexture=texture
+	End
+	
+	#rem monkeydoc The sky color.
+	
+	The sky color is used to modulate the sky texture.
+	
+	Sky color is only used if there is also a sky texture.
+	
+	#end
+	[jsonify=1]
+	Property SkyColor:Color()
+		
+		Return _skyColor
+	
+	Setter( color:Color )
+		
+		_skyColor=color
 	End
 	
 	#rem monkeydoc The environment texture.
@@ -61,7 +85,7 @@ Class Scene
 	This must currently be a valid cubemap texture.
 	
 	#end
-'	[jsonify=1]
+	[jsonify=1]
 	Property EnvTexture:Texture()
 		
 		Return _envTexture
@@ -141,7 +165,7 @@ Class Scene
 		_shadowAlpha=alpha
 	End
 	
-	#rem monkeydoc Scene update rate.
+	#rem monkeydoc Update rate.
 	#end
 	[jsonify=1]
 	Property UpdateRate:Float()
@@ -151,6 +175,18 @@ Class Scene
 	Setter( updateRate:Float )
 		
 		_updateRate=updateRate
+	End
+	
+	[jsonify=1]
+	#rem monkeydoc Number of update steps.
+	#end
+	Property MaxSubSteps:Int()
+		
+		Return _maxSubSteps
+	
+	Setter( maxSubSteps:Int )
+		
+		_maxSubSteps=maxSubSteps
 	End
 	
 	#rem monkeydoc Ambient diffuse lighting.
@@ -183,44 +219,7 @@ Class Scene
 		_csmSplits=splits.Slice( 0 )
 	End
 	
-	Property Editing:Bool()
-		
-		Return _editing
 	
-	Setter( editing:Bool )
-		
-		If editing And Not _jsonifier RuntimeError( "Scene is not editable" )
-		
-		_editing=editing
-	End
-	
-	Property Jsonifier:Jsonifier()
-		
-		Return _jsonifier
-	End
-	
-	Method PauseEditing()
-		
-		_editingPaused+=1
-	End
-	
-	Method ResumeEditing:Bool()
-		
-		_editingPaused-=1
-		
-		Return Editing
-	End
-	
-	Method LoadTexture:Texture( path:String,flags:TextureFlags,flipNormalY:Bool=False )
-		
-		Local texture:=Texture.Load( path,flags,flipNormalY )
-		If Not texture Return Null
-		
-		If Editing Jsonifier.AddInstance( texture,"mojo3d.Scene.LoadTexture",Self,New Variant[]( path,flags,flipNormalY ) )
-			
-		Return texture
-	End
-
 	#rem monkeydoc Finds an entity in the scene.
 	
 	Finds an entity in the scene with the given name.
@@ -268,22 +267,41 @@ Class Scene
 		Wend
 	End
 	
+	#rem monkeydoc Starts the scene.
+	
+	Called automatically if scene is not started by first update.
+	
+	#end
+	Method Start()
+		
+		If _started Return
+		_started=True
+		
+		For Local entity:=Eachin _rootEntities
+			
+			entity.Start()
+		Next
+		
+		_time=Now()
+		_elapsed=0
+	End
+	
 	#rem monkeydoc Updates the scene.
 	#end
 	Method Update()
 		
-		Global time:=0.0
-		
-		Local elapsed:=0.0
-		
-		If time
-			elapsed=Now()-time
-			time+=elapsed
-		Else
-			time=Now()
+		If Not _started
+			Start()
+			Return
 		Endif
 		
-		Update( elapsed )
+		Local now:=Now()
+		
+		_elapsed=now-_time
+		
+		_time=now
+		
+		Update( _elapsed )
 	End
 	
 	#rem monkeydoc Renders the scene to	a canvas.
@@ -308,17 +326,71 @@ Class Scene
 		Return _rootEntities.ToArray()
 	End
 	
+	'***** serialization stuff *****
+	
+	Property Editable:Bool()
+		
+		Return _editable
+	End
+	
+	Property Editing:Bool()
+		
+		Return _editing
+	
+	Setter( editing:Bool )
+		
+		If editing And Not _editable RuntimeError( "Scene is not editable" )
+		
+		_editing=editing
+	End
+	
+	Property Jsonifier:Jsonifier()
+		
+		Return _jsonifier
+	End
+	
+	Method LoadTexture:Texture( path:String,flags:TextureFlags=TextureFlags.FilterMipmap,flipNormalY:Bool=False )
+		
+		Local texture:=Texture.Load( path,flags,flipNormalY )
+		If Not texture Return Null
+		
+		If Editing Jsonifier.AddInstance( texture,"mojo3d.Scene.LoadTexture",Self,New Variant[]( path,flags,flipNormalY ) )
+			
+		Return texture
+	End
+
 	#rem monkeydoc Saves the scene to a mojo3d scene file
 	#end
-	Method Save( path:String )
+	Method Save( path:String,assetsDir:String="" )
 		
 		Assert( _jsonifier,"Scene is not editable" )
 		
-		Local jobj:=_jsonifier.JsonifyInstances()
+		Local jobj:=_jsonifier.JsonifyInstances( assetsDir )
 		
 		Local json:=jobj.ToJson()
 		
 		SaveString( json,path )
+	End
+
+	#rem monkeydoc Loads a mojo3d scene file and makes it current
+	#end
+	Function Load:Scene( path:String )
+		
+		Local json:=LoadString( path )
+		If Not json Return Null
+		
+		Local jobj:=JsonObject.Parse( json )
+		If Not jobj Return Null
+		
+		Local scene:=New Scene( True )
+		
+		SetCurrent( scene )
+		
+		scene.Jsonifier.DejsonifyInstances( jobj )
+		
+		scene.Start()
+		
+		Return scene
 	End
 	
 	#rem monkeydoc Sets the current scene.
@@ -341,25 +413,6 @@ Class Scene
 		If Not _current New Scene
 			
 		Return _current
-	End
-	
-	#rem monkeydoc Loads a mojo3d scene file and makes it current
-	#end
-	Function Load:Scene( path:String )
-
-		Local json:=LoadString( path )
-		If Not json Return Null
-		
-		Local jobj:=JsonObject.Parse( json )
-		If Not jobj Return Null
-		
-		Local scene:=New Scene
-		
-		SetCurrent( scene )
-		
-		scene.Jsonifier.DejsonifyInstances( jobj )
-		
-		Return scene
 	End
 	
 	Internal
@@ -389,17 +442,14 @@ Class Scene
 		Return _renderables
 	End
 	
-	Property World:World()
-		
-		Return _world
-	End
-	
 	Private
 	
 	Global _current:Scene
 	Global _defaultEnv:Texture
 	
 	Field _skyTexture:Texture
+	Field _skyColor:Color
+	
 	Field _envTexture:Texture
 	Field _envColor:Color
 	
@@ -413,6 +463,7 @@ Class Scene
 	Field _shadowAlpha:Float=1
 
 	Field _updateRate:Float=60
+	Field _maxSubSteps:Int=1
 	
 	Field _csmSplits:=New Float[]( 8.0,16.0,64.0,256.0 )
 	
@@ -425,10 +476,12 @@ Class Scene
 	Field _world:World
 	
 	Field _jsonifier:Jsonifier
-	
+	Field _editable:Bool
 	Field _editing:Bool
 	
-	Field _editingPaused:=0
+	Field _started:Bool
+	Field _time:Double
+	Field _elapsed:Double
 	
 	Method Update( elapsed:Float )
 		

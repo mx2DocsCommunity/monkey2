@@ -36,13 +36,15 @@ Class PrefsInstance
 	Field EditorUseSpacesAsTabs:=False
 	Field EditorTabSize:=4
 	Field EditorRemoveLinesTrailing:=False
+	Field EditorLineSpacing:=1.0
 	'
 	Field SourceSortByType:=True
 	Field SourceShowInherited:=False
 	'
 	Field MonkeyRootPath:String
 	Field IdeHomeDir:String
-	'	
+	Field OpenGlProfile:="es"
+	'
 	Field SiblyMode:Bool
 	
 	Property FindFilesFilter:String()
@@ -62,6 +64,7 @@ Class PrefsInstance
 			MainProjectIcons=Json_GetBool( j2,"projectIcons",MainProjectIcons )
       		MainProjectSingleClickExpanding=Json_GetBool( j2,"singleClickExpanding",MainProjectSingleClickExpanding )
       		MainPlaceDocsAtBegin=Json_GetBool( j2,"placeDocsAtBegin",MainPlaceDocsAtBegin )
+      		OpenGlProfile=Json_GetString( j2,"openglProfile",OpenGlProfile )
       		
 		Endif
 		
@@ -97,6 +100,7 @@ Class PrefsInstance
 			EditorUseSpacesAsTabs=Json_GetBool( j2,"useSpacesAsTabs",EditorUseSpacesAsTabs )
 			EditorTabSize=Json_GetInt( j2,"tabSize",EditorTabSize )
 			EditorRemoveLinesTrailing=Json_GetBool( j2,"removeLinesTrailing",EditorRemoveLinesTrailing )
+			EditorLineSpacing=Json_GetFloat( j2,"lineSpacing",EditorLineSpacing )
 			
 		Endif
 		
@@ -123,6 +127,7 @@ Class PrefsInstance
 		j["projectIcons"]=New JsonBool( MainProjectIcons )
 		j["singleClickExpanding"]=New JsonBool( MainProjectSingleClickExpanding )
 		j["placeDocsAtBegin"]=New JsonBool( MainPlaceDocsAtBegin )
+		j["openglProfile"]=New JsonString( OpenGlProfile )
 		
 		j=New JsonObject
 		json["completion"]=j
@@ -152,6 +157,7 @@ Class PrefsInstance
 		j["useSpacesAsTabs"]=New JsonBool( EditorUseSpacesAsTabs )
 		j["tabSize"]=New JsonNumber( EditorTabSize )
 		j["removeLinesTrailing"]=New JsonBool( EditorRemoveLinesTrailing )
+		j["lineSpacing"]=New JsonNumber( EditorLineSpacing )
 		
 		j=New JsonObject
 		json["source"]=j

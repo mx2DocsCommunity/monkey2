@@ -20,9 +20,9 @@ Class Model Extends Renderable
 		
 		Name="Model"
 		
-		AddInstance()
-		
 		Visible=True
+		
+		AddInstance()
 	End
 	
 	Method New( mesh:Mesh,material:Material,parent:Entity=Null )
@@ -31,13 +31,13 @@ Class Model Extends Renderable
 		
 		Name="Model"
 		
-		AddInstance( New Variant[]( mesh,material,parent ) )
-		
 		Mesh=mesh
 		Materials=New Material[]( material )
 		Material=material
 		
 		Visible=True
+
+		AddInstance( New Variant[]( mesh,material,parent ) )
 	End
 	
 	#rem monkeydoc Copies the model.
@@ -72,6 +72,7 @@ Class Model Extends Renderable
 	
 	#rem monkeydoc The materials to use for rendering.
 	#end
+	[jsonify=1]
 	Property Materials:Material[]()
 		
 		Return _materials
@@ -83,7 +84,6 @@ Class Model Extends Renderable
 	
 	#rem monkeydoc The default material to use for rendering.
 	#end
-	[jsonify=1]
 	Property Material:Material()
 		
 		Return _material
@@ -121,19 +121,28 @@ Class Model Extends Renderable
 	
 	#end
 	Function Load:Model( path:String )
-	
-		For Local loader:=Eachin Mojo3dLoader.Instances
 		
-			Local model:=loader.LoadModel( path )
+		Local scene:=mojo3d.Scene.GetCurrent()
+		
+		If scene.Editing
+			scene.Jsonifier.BeginLoading()
+		Endif
+		
+		Local model:Model
+		
+		For Local loader:=Eachin Mojo3dLoader.Instances
 			
-			If Not model Continue
+			model=loader.LoadModel( path )
 			
-			If model.Scene.Editing model.Scene.Jsonifier.AddInstance( model,"mojo3d.Model.Load",New Variant[]( path )  )
-				
-			Return model
+			If model Exit
 		Next
 		
-		Return Null
+		If scene.Editing
+			scene.Jsonifier.EndLoading()
+			If model scene.Jsonifier.AddInstance( model,"mojo3d.Model.Load",New Variant[]( path )  )
+		Endif
+		
+		Return model
 	End
 	
 	#rem monkeydoc Loads a boned model from a file path.
@@ -153,15 +162,28 @@ Class Model Extends Renderable
 	
 	#end
 	Function LoadBoned:Model( path:String )
+		
+		Local scene:=mojo3d.Scene.GetCurrent()
+		
+		If scene.Editing
+			scene.Jsonifier.BeginLoading()
+		Endif
+		
+		Local model:Model		
 	
 		For Local loader:=Eachin Mojo3dLoader.Instances
 		
-			Local model:=loader.LoadBonedModel( path )
+			model=loader.LoadBonedModel( path )
 			
-			If model Return model
+			If model Exit
 		Next
 		
-		Return Null
+		If scene.Editing
+			scene.Jsonifier.EndLoading()
+			If model scene.Jsonifier.AddInstance( model,"mojo3d.Model.LoadBoned",New Variant[]( path )  )
+		Endif
+		
+		Return model
 	End
 	
 	Protected

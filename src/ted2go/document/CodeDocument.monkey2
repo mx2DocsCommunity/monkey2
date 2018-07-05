@@ -58,6 +58,11 @@ Class CodeDocumentView Extends Ted2CodeTextView
 					
 					text=_doc.PrepareForInsert( ident,text,Not bySpace,LineTextAtCursor,PosInLineAtCursor,item )
 					Local i1:=Cursor-AutoComplete.LastIdentPart.Length
+					
+					If text.StartsWith( "#" ) And i1>0 And Text[i1-1]=Chars.GRID
+						i1-=1
+					Endif
+					
 					Local i2:=Cursor
 					If result.byTab
 						Local i:=Cursor
@@ -111,7 +116,12 @@ Class CodeDocumentView Extends Ted2CodeTextView
 		Endif
 		If _codeMap Then _codeMap.Visible=visible
 		
+		'line spacing
+		LineSpacing=Prefs.EditorLineSpacing
+		
 		_doc.ArrangeElements()
+		
+		InvalidateStyle()
 	End
 	
 	
@@ -174,10 +184,10 @@ Class CodeDocumentView Extends Ted2CodeTextView
 		
 		_doc.HideHint_()
 		
-		Local alt:=(event.Modifiers & Modifier.Alt)
-		Local ctrl:=(event.Modifiers & Modifier.Control)
-		Local shift:=(event.Modifiers & Modifier.Shift)
-		Local menu:=(event.Modifiers & Modifier.Menu)
+		Local alt:=(event.Modifiers & Modifier.Alt)<>0
+		Local ctrl:=(event.Modifiers & Modifier.Control)<>0
+		Local shift:=(event.Modifiers & Modifier.Shift)<>0
+		Local menu:=(event.Modifiers & Modifier.Menu)<>0
 		
 		'ctrl+space - show autocomplete list
 		Select event.Type
@@ -186,18 +196,6 @@ Class CodeDocumentView Extends Ted2CodeTextView
 			Local key:=FixNumpadKeys( event )
 			
 			Select key
-				
-'				#If __TARGET__="macos"
-'				Case Key.K
-'					If ctrl 
-'						If shift
-'							DeleteLineAtCursor()
-'						Else
-'							DeleteToEnd()
-'						Endif
-'						Return
-'					Endif
-'				#Endif
 				
 				Case Key.D
 					
@@ -266,7 +264,7 @@ Class CodeDocumentView Extends Ted2CodeTextView
 						Endif
 						
 					Else
-						
+					
 						' remove all indent spaces by single press of Backspace
 						If Cursor=Anchor And Prefs.EditorUseSpacesAsTabs
 							
@@ -301,25 +299,28 @@ Class CodeDocumentView Extends Ted2CodeTextView
 							
 						Endif
 						
+						Local line:=CursorLine
+						If Cursor=Anchor And Cursor=Document.StartOfLine( line )
+							
+							_delKey=Key.Backspace
+							
+							Local f:=_folding[line]
+							If f
+								If f.folded
+									SetLineVisible( line,False )
+								Endif
+								_folding.Remove( line )
+								_folding[line-1]=f
+								f.startLine-=1
+								f.endLine-=1
+								f.folded+=10 ' hack
+							Endif
+						Endif
 						
 					Endif
 				
-				'Case Key.F11
-				'
-				'	ShowJsonDialog()
-					
-					
-				#If __TARGET__="windows"
-				Case Key.E 'delete whole line
-					If ctrl
-						DeleteLineAtCursor()
-						Return
-					Endif
-				#Endif
-			
-			
 				Case Key.X
-			
+					
 					If ctrl 'nothing selected - cut whole line
 						OnCut( Not CanCopy )
 						Return
@@ -327,7 +328,7 @@ Class CodeDocumentView Extends Ted2CodeTextView
 			
 			
 				Case Key.C
-			
+					
 					If ctrl 'nothing selected - copy whole line
 						OnCopy( Not CanCopy )
 						Return
@@ -335,7 +336,7 @@ Class CodeDocumentView Extends Ted2CodeTextView
 			
 			
 				Case Key.Insert 'ctrl+insert - copy, shift+insert - paste
-			
+					
 					If shift
 						SmartPaste()
 					Elseif ctrl
@@ -348,7 +349,9 @@ Class CodeDocumentView Extends Ted2CodeTextView
 			
 			
 				Case Key.KeyDelete
-			
+					
+					_delKey=Key.KeyDelete
+					
 					If shift 'shift+del - cut selected
 						If ctrl
 '							DeleteToEnd()
@@ -385,12 +388,23 @@ Class CodeDocumentView Extends Ted2CodeTextView
 					Local text:=Document.GetLine( line )
 					Local indent:=GetIndent( text )
 					Local posInLine:=PosInLineAtCursor
+					
 					'fix 'bug' when we delete ~n at the end of line.
 					'in this case GetLine return 2 lines, and if they empty
 					'then we get double indent
 					'need to fix inside mojox
 					
 					Local beforeIndent:=(posInLine<=indent)
+					
+					Local f:=_folding[line]
+					If f And beforeIndent
+						f.folded+=20
+					Elseif Not f And Not beforeIndent
+						f=FindNearestFolding( line )
+						If f And line=f.endLine
+							f.folded+=30
+						Endif
+					Endif
 					
 					If indent > posInLine Then indent=posInLine
 					
@@ -412,7 +426,7 @@ Class CodeDocumentView Extends Ted2CodeTextView
 							If text.ToLower().EndsWith( "abstract" )
 								' nothing
 							Else
-								Local scope:=_doc.Parser.GetScope( FilePath,LineNumAtCursor )
+								Local scope:=_doc.Parser.GetScope( FilePath,CursorPos )
 								If scope And scope.Kind=CodeItemKind.Interface_
 									' nothing
 								Else
@@ -421,9 +435,9 @@ Class CodeDocumentView Extends Ted2CodeTextView
 							Endif
 						Endif
 					Endif
-			
+					
 					ReplaceText( "~n"+s )
-			
+					
 					Return
 			
 				#If __TARGET__="macos"
@@ -443,7 +457,7 @@ Class CodeDocumentView Extends Ted2CodeTextView
 			
 				Case Key.Up '
 			
-					If event.Modifiers & Modifier.Menu
+					If menu
 						If shift 'selection
 							SelectText( 0,Anchor )
 						Else
@@ -454,7 +468,7 @@ Class CodeDocumentView Extends Ted2CodeTextView
 			
 				Case Key.Down '
 			
-					If event.Modifiers & Modifier.Menu
+					If menu
 						If shift 'selection
 							SelectText( Anchor,Text.Length )
 						Else
@@ -745,10 +759,11 @@ Class CodeDocumentView Extends Ted2CodeTextView
 	End
 	
 	Method ShowJsonDialog()
-	
-		New Fiber( Lambda()
 		
-			Local cmd:="~q"+MainWindow.Mx2ccPath+"~q makeapp -parse -geninfo ~q"+_doc.Path+"~q"
+		Local cmd:=Monkey2Parser.GetParseCommand( _doc.Path )
+		If Not cmd Return
+		
+		New Fiber( Lambda()
 			
 			Local str:=LoadString( "process::"+cmd )
 			Local i:=str.Find( "{" )
@@ -767,7 +782,6 @@ Class CodeDocumentView Extends Ted2CodeTextView
 			tv.WordWrap=True
 			tv.Text=str
 			dock.AddView( tv,"bottom",200,True )
-			
 			
 			Local dialog:=New Dialog( "ParseInfo",dock )
 			dialog.AddAction( "Close" ).Triggered=dialog.Close
@@ -831,6 +845,10 @@ Class CodeDocumentView Extends Ted2CodeTextView
 		
 		_lineColor=App.Theme.GetColor( "textview-cursor-line" )
 		
+	End
+	
+	Method OnValidateStyle() Override
+		
 		Local newFont:Font
 		Local fontPath:=Prefs.GetCustomFontPath()
 		If fontPath
@@ -840,6 +858,9 @@ Class CodeDocumentView Extends Ted2CodeTextView
 		If Not newFont Then newFont=App.Theme.GetStyle( Style.Name ).Font
 		
 		RenderStyle.Font=newFont
+		
+		Super.OnValidateStyle()
+		
 	End
 	
 	Method InsertLiveTemplate:Bool( ident:String,templ:String=Null )
@@ -1119,7 +1140,7 @@ Class CodeDocument Extends Ted2Document
 						Local s:=textLine.Slice( 0,i1 ).Trim()
 						s=Utils.GetIndentBeforePos( s,s.Length )
 						
-						Local item:=_parser.ItemAtScope( s,Path,_codeView.LineNumAtCursor )
+						Local item:=_parser.ItemAtScope( s,Path,CursorPos )
 						If item
 							' strip ident
 							s=item.Text.Slice( item.Ident.Length )
@@ -1135,8 +1156,21 @@ Class CodeDocument Extends Ted2Document
 				Endif
 			Endif
 			
-			result+="~n"+Utils.RepeatStr( "~t",indent+1 )+"~n"
-			result+=Utils.RepeatStr( "~t",indent )+"End"
+			Local indentStr:=TextUtils.GetIndentStr()
+			result+="~n"+Utils.RepeatStr( indentStr,indent+1 )+"~n"
+			result+=Utils.RepeatStr( indentStr,indent )+"End"
+		
+			Return result
+		Endif
+		
+		If ident="monkeydoc"
+			
+			Local indent:=Utils.GetIndent( textLine )
+			Local indentStr:=TextUtils.GetIndentStr()
+			indentStr=Utils.RepeatStr( indentStr,indent )
+			Local result:="#Rem monkeydoc ~n"
+			result+=indentStr+"#End"
+			
 			Return result
 		Endif
 		
@@ -1166,17 +1200,30 @@ Class CodeDocument Extends Ted2Document
 		Return _doc
 	End
 	
+	Method JumpToDebugLine( path:String,line:Int )
+		
+		Local doc:=Cast<CodeDocument>( MainWindow.DocsManager.OpenDocument( path,True ) )
+		If doc
+			MainWindow.UpdateWindow( False )
+			Local haveNoLine:=(doc.DebugLine=-1)
+			Local pos:=New Vec2i( line,0 )
+			If haveNoLine
+				JumpToPosition( path,pos ) 'store jump position
+			Else
+				doc._codeView.GotoPosition( pos,0 )
+			Endif
+			doc?.DebugLine=line
+		Endif
+	End
+	
 	Property DebugLine:Int()
 	
 		Return _debugLine
 	
 	Setter( debugLine:Int )
-		If debugLine=_debugLine Return
 		
 		_debugLine=debugLine
-		If _debugLine=-1 Return
 		
-		_codeView.GotoLine( _debugLine )
 	End
 	
 	Property Errors:Stack<BuildError>()
@@ -1211,6 +1258,21 @@ Class CodeDocument Extends Ted2Document
 		Return _errMap[line]
 	End
 	
+	Method OnDocumentParsed( codeItems:Stack<CodeItem>,errors:Stack<BuildError> )
+		
+		ResetErrors()
+		
+		If errors And Not errors.Empty
+			For Local err:=Eachin errors
+				AddError( err )
+			Next
+			Return
+		Endif
+		
+		UpdateCodeTree( codeItems )
+		UpdateFolding()
+	End
+	
 	Method ResetErrors()
 		_errors.Clear()
 		_errMap.Clear()
@@ -1232,9 +1294,8 @@ Class CodeDocument Extends Ted2Document
 		
 		If Not _parsingEnabled Return
 		
-		Local ident:=_codeView.FullIdentAtCursor
-		Local line:=TextDocument.FindLine( _codeView.Cursor )
-		Local item:=_parser.ItemAtScope( ident,Path,line )
+		Local ident:=_codeView.IdentBeforeCursor()
+		Local item:=_parser.ItemAtScope( ident,Path,CursorPos )
 		
 		If item
 			Local pos:=item.ScopeStartPos
@@ -1284,7 +1345,7 @@ Class CodeDocument Extends Ted2Document
 		
 		If Not ident Then ident=_codeView.IdentBeforeCursor()
 		
-		Print "ident: "+ident
+		'Print "ident: "+ident
 		
 		'show
 		Local lineNum:=TextDocument.FindLine( _codeView.Cursor )
@@ -1405,6 +1466,12 @@ Class CodeDocument Extends Ted2Document
 	Field _toolBar:ToolBarExt
 	Field _content:DockingView
 	
+	Method InitParser()
+		
+		_parser=ParsersManager.Get( FileExtension )
+		_parsingEnabled=Not ParsersManager.IsFake( _parser )
+	End
+	  
 	Method GetToolBar:ToolBarExt()
 		
 		If _toolBar Return _toolBar
@@ -1502,8 +1569,6 @@ Class CodeDocument Extends Ted2Document
 		
 		InitParser()
 		
-		ParsingDoc() 'start parsing right after loading, not by timer
-		
 		' grab lines after load
 		_doc.LinesModified+=Lambda( first:Int,removed:Int,inserted:Int )
 			
@@ -1551,127 +1616,68 @@ Class CodeDocument Extends Ted2Document
 		OnUpdateCurrentScope()
 	End
 	
+	Property CursorPos:Vec2i()
+		
+		Return GetCursorPos( _codeView )
+	End
+	
 	Method OnUpdateCurrentScope()
 		
-		Local scope:=_parser.GetNearestScope( Path,_codeView.LineNumAtCursor+1,True )
+		'DebugStop()
+		Local scope:=_parser.GetNearestScope( Path,CursorPos )
+		'Print ""+CursorPos+", "+scope?.KindStr+", "+scope?.Text
 		If scope
 			_treeView.SelectByScope( scope )
 		Endif
 	End
 	
-	Method UpdateCodeTree()
+	Method UpdateCodeTree( codeItems:Stack<CodeItem> = Null )
 		
-		_treeView.Fill( FileExtension,Path )
+		_treeView.Fill( codeItems,_parser )
 		OnUpdateCurrentScope()
 	End
 	
-	Method InitParser()
+	Field _tmpFileItems:=New Stack<CodeItem>
+	Method UpdateFolding()
 		
-		_parser=ParsersManager.Get( FileExtension )
-		_parsingEnabled=Not ParsersManager.IsFake( _parser )
-	End
-	
-	Field _timeDocParsed:=0
-	Field _timeTextChanged:=0
-	Method ParsingOnTextChanged()
+		' extract all items in file
+		Local list:=_parser.ItemsMap[Path]
+		If list Then _tmpFileItems.AddAll( list )
 		
-		If Not _parsingEnabled Return
-		
-		_timeTextChanged=Millisecs()
-		
-		If Not _timer Then _timer=New Timer( 1,Lambda()
-		
-			If _parsing Return
-			
-			Local msec:=Millisecs()
-			If msec<_timeDocParsed+1000 Return
-			If _timeTextChanged=0 Or msec<_timeTextChanged+1000 Return
-			_timeTextChanged=0
-			
-			ParsingDoc()
-		
-		End )
-		
-	End
-	
-	Method ParsingDoc()
-		
-		If _parsing Return
-		
-		_parsing=True
-		
-		New Fiber( Lambda()
-			
-			Local dirty:=Dirty
-			
-			Local filePath:=Path
-			If dirty
-				filePath=MainWindow.AllocTmpPath( "_mx2cc_parse_",".monkey2" )
-				SaveString( _doc.Text,filePath )
-			Endif
-			
-			ParsingFile( filePath )
-		
-			If dirty Then DeleteFile( filePath )
-			
-			_parsing=False
-			
-			_timeDocParsed=Millisecs()
-			
-		End )
-		
-	End
-	
-	Method ParsingFile( pathOnDisk:String )
-		
-		If MainWindow.IsTerminating Return
-		
-		ResetErrors()
-		
-		Local errors:=_parser.ParseFile( Path,pathOnDisk,"" )
-		
-		If MainWindow.IsTerminating Return
-		
-		If errors
-			
-			If errors="#"
-				Return
-			Endif
-			
-			Local arr:=errors.Split( "~n" )
-			For Local s:=Eachin arr
-				Local i:=s.Find( "] : Error : " )
-				If i<>-1
-					Local j:=s.Find( " [" )
-					If j<>-1
-						Local path:=s.Slice( 0,j )
-						Local line:=Int( s.Slice( j+2,i ) )-1
-						Local msg:=s.Slice( i+12 )
-						
-						Local err:=New BuildError( path,line,msg )
-					
-						AddError( err )
-						
-					Endif
+		' extensions are here too
+		For list=Eachin _parser.ExtraItemsMap.Values
+			For Local i:=Eachin list
+				If i.FilePath=Path
+					If Not _tmpFileItems.Contains( i.Parent ) Then _tmpFileItems.Add( i.Parent )
 				Endif
 			Next
-			
-			Return ' exit when errors
+		Next
+		
+		If _tmpFileItems.Empty
+			_codeView.ResetFolding()
+			Return
 		Endif
 		
-		UpdateCodeTree()
+		UpdateFolding( _tmpFileItems,Null )
 		
+		_tmpFileItems.Clear()
+		
+	End
+	
+	Method UpdateFolding( items:Stack<CodeItem>,parent:CodeTextView.Folding )
+	
+		For Local i:=Eachin items
+			Local cls:=i.IsLikeClass
+			If cls Or i.IsLikeFunc Or i.IsOperator Or i.IsProperty
+				Local starts:=i.ScopeStartPos.x
+				Local ends:=i.ScopeEndPos.x
+				_codeView.MarkAsFoldable( starts,ends,parent )
+				If cls And i.Children Then UpdateFolding( i.Children,_codeView.GetFolding( starts ) )
+			Endif
+		Next
 	End
 	
 	Method OnTextChanged()
-		
-		' catch for common operations
-		
-		
-		' -----------------------------------
-		' catch for parsing
-		
-		ParsingOnTextChanged()
 		
 	End
 	
@@ -1810,9 +1816,8 @@ Class CodeDocument Extends Ted2Document
 			
 			opts.ident=ident
 			opts.filePath=Path
-			opts.docLineNum=_codeView.LineNumAtCursor
+			opts.cursor=CursorPos
 			opts.docLineStr=line
-			opts.docPosInLine=pos
 			opts.results=results
 			
 			results.Clear()
@@ -2061,7 +2066,7 @@ End
 Class NavOps<T>
 	
 	Field OnNavigate:Void( target:T )
-		
+	
 	Method Navigate( value:T )
 		
 		Push( value )
@@ -2093,7 +2098,7 @@ Class NavOps<T>
 			Return
 		Endif
 		Local value:=_items[_index]
-
+		
 		OnNavigate( value )
 	End
 	
@@ -2105,7 +2110,7 @@ Class NavOps<T>
 			Return
 		Endif
 		Local value:=_items[_index]
-
+		
 		OnNavigate( value )
 	End
 	
@@ -2301,12 +2306,3 @@ Class ParamsHintView Extends TextView
 	End
 	
 End
-
-'Class CodeTextView_Bridge Extends CodeTextView Final
-'	
-'	Function OnContentMouseEvent( view:CodeTextView,event:MouseEvent )
-'		
-'		view.OnContentMouseEvent( event )
-'	End
-'	
-'End

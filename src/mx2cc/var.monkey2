@@ -6,6 +6,8 @@ Class VarDecl Extends Decl
 	Field type:Expr
 	Field init:Expr
 	
+	Field semtype:Type
+	
 	Method ToNode:SNode( scope:Scope ) Override
 	
 		Return New VarValue( Self,scope )
@@ -43,11 +45,14 @@ Class VarValue Extends Value
 		End
 	End
 	
-	Method New( kind:String,ident:String,init:Value,scope:Scope )
+	Method New( kind:String,ident:String,init:Value,scope:Scope,srcpos:Int=0,endpos:Int=0,declflags:Int=0 )
 
 		vdecl=New VarDecl
 		vdecl.kind=kind
 		vdecl.ident=ident
+		vdecl.srcpos=srcpos
+		vdecl.endpos=endpos
+		vdecl.flags=declflags
 		
 		Self.pnode=vdecl
 		Self.type=init.type
@@ -80,7 +85,7 @@ Class VarValue Extends Value
 			type=vdecl.type.SemantType( scope )
 			
 			If vdecl.init init=vdecl.init.SemantRValue( scope,type )
-			
+				
 		Else If vdecl.init
 		
 			init=vdecl.init.SemantRValue( scope )
@@ -88,11 +93,15 @@ Class VarValue Extends Value
 			If TCast<VoidType>( init.type ) Throw New SemantEx( "Variables cannot have 'Void' type" )
 			
 			type=init.type
-			
 		Else 
 
 			SemantError( "VarValue.OnSemant()" )
 
+		Endif
+		
+		If Not scope.IsInstanceOf
+			If vdecl.semtype SemantError( "VarValue.OnSemant() 2" )
+			vdecl.semtype=type
 		Endif
 		
 		If Not scope.IsGeneric And Not vdecl.IsExtern And Not Cast<Block>( scope )
@@ -104,18 +113,6 @@ Class VarValue Extends Value
 			Endif
   		
 		Endif
-		
-		#rem
-		If Not type.IsGeneric And Not vdecl.IsExtern And Not Cast<Block>( scope )
-		
-			If vdecl.kind="global" Or vdecl.kind="const"
-				transFile.globals.Push( Self )
-			Else
-				scope.transMembers.Push( Self )
-			Endif
-			
-		Endif
-		#end
 		
 		Scope.semanting.Pop()
 	

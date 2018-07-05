@@ -77,6 +77,14 @@ Alias uintptr_t:ULong
 
 Function sizeof<T>:size_t( t:T )="sizeof"
 	
+Public
+
+Function sizeof<T>:size_t()
+	Return libc.sizeof( Cast<T Ptr>(0)[0] )
+End
+
+Extern
+
 '***** limits.h *****
 
 Const PATH_MAX:Int
@@ -175,6 +183,7 @@ Function localtime:tm_t Ptr( timer:time_t Ptr )
 Function gmtime:tm_t Ptr( timer:time_t Ptr )
 Function difftime:Double( endtime:time_t,starttime:time_t ) 
 Function gettimeofday:Int( tv:timeval Ptr )="gettimeofday_utf8"
+Function mktime:time_t( tm:tm_t Ptr )
 
 '***** unistd.h *****
 
@@ -217,3 +226,5 @@ End
 Function opendir:DIR Ptr( path:CString )="opendir_utf8"
 Function readdir:dirent Ptr( dir:DIR Ptr )="readdir_utf8"
 Function closedir( dir:DIR Ptr )="closedir_utf8"
+
+Public

@@ -1,22 +1,23 @@
 
 Namespace test
 
-Class C
-End
+#Import "<windows.h>"
 
-Struct S<T>
-End
+Extern
 
-Alias Si:S<Int>
+Alias DWORD:UInt
+Alias LPDWORD:DWORD Ptr
 
-Function Get<T>:TypeInfo()
-	Return Typeof( Cast<T>( Null ) )
+Public
+
+Function Test( p:LPDWORD )
+	
+	Print p[0]
 End
 
 Function Main()
 	
-	Print Typeof<C>
+	Local t:DWORD=10
 	
-	Print Typeof<Si>
-	
+	Test( Varptr t )
 End

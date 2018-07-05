@@ -86,11 +86,13 @@ Class PrefsDialog Extends DialogExt
 	Field _editorUseSpacesAsTabs:CheckButton
 	Field _editorTabSize:TextFieldExt
 	Field _editorRemoveLinesTrailing:CheckButton
+	Field _editorLineSpacing:TextFieldExt
 	
 	Field _mainToolBarVisible:CheckButton
 	Field _mainProjectIcons:CheckButton
 	Field _mainProjectSingleClickExpanding:CheckButton
 	Field _mainPlaceDocsAtBegin:CheckButton
+	Field _mainUseOpenGlEsProfile:CheckButton
 	
 	Field _monkeyRootPath:TextFieldExt
 	
@@ -140,11 +142,13 @@ Class PrefsDialog Extends DialogExt
 		If Not size Then size="4" 'default
 		Prefs.EditorTabSize=Clamp( Int(size),1,16 )
 		Prefs.EditorRemoveLinesTrailing=_editorRemoveLinesTrailing.Checked
+		Prefs.EditorLineSpacing=Clamp( Float(_editorLineSpacing.Text.Trim()),0.5,2.5 )
 		
 		Prefs.MainToolBarVisible=_mainToolBarVisible.Checked
 		Prefs.MainProjectIcons=_mainProjectIcons.Checked
 		Prefs.MainProjectSingleClickExpanding=_mainProjectSingleClickExpanding.Checked
 		Prefs.MainPlaceDocsAtBegin=_mainPlaceDocsAtBegin.Checked
+		Prefs.OpenGlProfile=_mainUseOpenGlEsProfile.Checked ? "es" Else ""
 		
 		App.ThemeChanged()
 		
@@ -171,6 +175,9 @@ Class PrefsDialog Extends DialogExt
 		
 		_mainPlaceDocsAtBegin=New CheckButton( "Place opened document to the left side" )
 		_mainPlaceDocsAtBegin.Checked=Prefs.MainPlaceDocsAtBegin
+		
+		_mainUseOpenGlEsProfile=New CheckButton( "Use opengl 'es' mode; uncheck to use full onengl (restart required)" )
+		_mainUseOpenGlEsProfile.Checked=(Prefs.OpenGlProfile="es")
 		
 		_monkeyRootPath=New TextFieldExt( Prefs.MonkeyRootPath )
 		_monkeyRootPath.Enabled=False
@@ -211,6 +218,9 @@ Class PrefsDialog Extends DialogExt
 		docker.AddView( _mainToolBarVisible,"top" )
 		docker.AddView( _mainProjectSingleClickExpanding,"top" )
 		docker.AddView( _mainPlaceDocsAtBegin,"top" )
+		#If __TARGET__="windows"
+		docker.AddView( _mainUseOpenGlEsProfile,"top" )
+		#Endif
 		docker.AddView( New Label( " " ),"top" )
 		
 		Return docker
@@ -251,6 +261,8 @@ Class PrefsDialog Extends DialogExt
 		
 		_editorRemoveLinesTrailing=New CheckButton( "Remove whitespaced trailings on saving" )
 		_editorRemoveLinesTrailing.Checked=Prefs.EditorRemoveLinesTrailing
+		
+		_editorLineSpacing=New TextFieldExt( ""+Prefs.EditorLineSpacing )
 		
 		Local path:=Prefs.EditorFontPath
 		If Not path Then path=_defaultFont
@@ -299,6 +311,12 @@ Class PrefsDialog Extends DialogExt
 		tabs.AddView( _editorTabSize,"left" )
 		tabs.AddView( _editorUseSpacesAsTabs,"left" )
 		
+		Local lineSpacing:=New DockingView
+		lineSpacing.AddView( New Label( "Line spacing interval:" ),"left" )
+		_editorLineSpacing.MaxSize=New Vec2i( 100,100 )
+		lineSpacing.AddView( _editorLineSpacing,"left" )
+		lineSpacing.AddView( New Label( "  0.5...2.5" ),"left" )
+		
 		Local docker:=New DockingView
 		docker.AddView( New Label( " " ),"top" )
 		docker.AddView( _editorToolBarVisible,"top" )
@@ -313,6 +331,7 @@ Class PrefsDialog Extends DialogExt
 		docker.AddView( _editorShowParamsHint,"top" )
 		docker.AddView( _editorRemoveLinesTrailing,"top" )
 		docker.AddView( tabs,"top" )
+		docker.AddView( lineSpacing,"top" )
 		docker.AddView( New Label( " " ),"top" )
 		
 		
@@ -501,7 +520,6 @@ Class PrefsDialog Extends DialogExt
 			Return
 		Endif
 		
-		DebugStop()
 		LiveTemplates[TemplateSelLang].Remove( TemplateSelName )
 		_treeView.RemoveNode( _treeView.Selected )
 		_codeView.Text=""

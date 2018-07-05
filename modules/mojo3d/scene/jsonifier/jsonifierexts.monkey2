@@ -1,5 +1,31 @@
 Namespace mojo3d.jsonifier
 
+Class MojoJsonifierExt Extends JsonifierExt
+	
+	Const Instance:=New MojoJsonifierExt
+
+	Method Jsonify:JsonValue( value:Variant,jsonifier:Jsonifier ) Override
+		
+		Select value.Type
+		Case Typeof<TextureFlags>
+			Return New JsonNumber( Int( Cast<TextureFlags>( value ) ) )
+		End
+		
+		Return Null
+	End
+
+	Method Dejsonify:Variant( jvalue:JsonValue,type:TypeInfo,jsonifier:Jsonifier ) Override
+		
+		Select type
+		Case Typeof<TextureFlags>
+			Return Cast<TextureFlags>( Int( jvalue.ToNumber() ) )
+		End
+		
+		Return Null
+	End
+	
+End
+
 Class StdJsonifierExt Extends JsonifierExt
 	
 	Const Instance:=New StdJsonifierExt
@@ -9,28 +35,30 @@ Class StdJsonifierExt Extends JsonifierExt
 		Select value.Type
 		Case Typeof<Vec2i>
 			Local v:=Cast<Vec2i>( value )
-			Return jsonifier.JsonifyArray( New Int[]( v.x,v.y ) )
+			Return jsonifier.Jsonify( New Int[]( v.x,v.y ) )
 		Case Typeof<Vec2f>
 			Local v:=Cast<Vec2f>( value )
-			Return jsonifier.JsonifyArray( New Float[]( v.x,v.y ) )
+			Return jsonifier.Jsonify( New Float[]( v.x,v.y ) )
 		Case Typeof<Recti>
 			Local v:=Cast<Recti>( value )
-			Return jsonifier.JsonifyArray( new Int[]( v.min.x,v.min.y,v.max.x,v.max.y ) )
+			Return jsonifier.Jsonify( new Int[]( v.min.x,v.min.y,v.max.x,v.max.y ) )
 		Case Typeof<Rectf>
 			Local v:=Cast<Rectf>( value )
-			Return jsonifier.JsonifyArray( New Float[]( v.min.x,v.min.y,v.max.x,v.max.y ) )
+			Return jsonifier.Jsonify( New Float[]( v.min.x,v.min.y,v.max.x,v.max.y ) )
 		Case Typeof<Vec3f>
 			Local v:=Cast<Vec3f>( value )
-			Return jsonifier.JsonifyArray( New Float[]( v.x,v.y,v.z ) )
+			Return jsonifier.Jsonify( New Float[]( v.x,v.y,v.z ) )
 		Case Typeof<Boxf>
 			Local v:=Cast<Boxf>( value )
-			Return jsonifier.JsonifyArray( New Float[]( v.min.x,v.min.y,v.min.z,v.max.x,v.max.y,v.max.z ) )
+			Return jsonifier.Jsonify( New Float[]( v.min.x,v.min.y,v.min.z,v.max.x,v.max.y,v.max.z ) )
 		Case Typeof<AffineMat4f>
 			Local v:=Cast<AffineMat4f>( value )
-			Return jsonifier.JsonifyArray( New Float[]( v.m.i.x,v.m.i.y,v.m.i.z, v.m.j.x,v.m.j.y,v.m.j.z, v.m.k.x,v.m.k.y,v.m.k.z, v.t.x,v.t.y,v.t.z ) )
+			Return jsonifier.Jsonify( New Float[]( v.m.i.x,v.m.i.y,v.m.i.z, v.m.j.x,v.m.j.y,v.m.j.z, v.m.k.x,v.m.k.y,v.m.k.z, v.t.x,v.t.y,v.t.z ) )
 		Case Typeof<Color>
 			Local v:=Cast<Color>( value )
-			Return jsonifier.JsonifyArray( New Float[]( v.r,v.g,v.b,v.a ) )
+			Return jsonifier.Jsonify( New Float[]( v.r,v.g,v.b,v.a ) )
+		Case typeof<Axis>
+			Return New JsonNumber( Int( Cast<Axis>( value ) ) )
 		End
 		
 		Return Null
@@ -40,29 +68,31 @@ Class StdJsonifierExt Extends JsonifierExt
 		
 		Select type
 		Case Typeof<Vec2i>
-			Local v:=jsonifier.DejsonifyArray<Int>( jvalue )
+			Local v:=jsonifier.Dejsonify<Int[]>( jvalue )
 			Return New Vec2i( v[0],v[1] )
 		Case Typeof<Vec2f>
-			Local v:=jsonifier.DejsonifyArray<Float>( jvalue )
+			Local v:=jsonifier.Dejsonify<Float[]>( jvalue )
 			Return New Vec2f( v[0],v[1] )
 		Case Typeof<Recti>
-			Local v:=jsonifier.DejsonifyArray<Float>( jvalue )
+			Local v:=jsonifier.Dejsonify<Int[]>( jvalue )
 			Return New Recti( v[0],v[1],v[2],v[3] )
 		Case Typeof<Rectf>
-			Local v:=jsonifier.DejsonifyArray<Float>( jvalue )
+			Local v:=jsonifier.Dejsonify<Float[]>( jvalue )
 			Return New Rectf( v[0],v[1],v[2],v[3] )
 		Case Typeof<Vec3f>
-			Local v:=jsonifier.DejsonifyArray<Float>( jvalue )
+			Local v:=jsonifier.Dejsonify<Float[]>( jvalue )
 			Return New Vec3f( v[0],v[1],v[2] )
 		Case Typeof<Boxf>
-			Local v:=jsonifier.DejsonifyArray<Float>( jvalue )
+			Local v:=jsonifier.Dejsonify<Float[]>( jvalue )
 			Return New Boxf( v[0],v[1],v[2],v[3],v[4],v[5] )
 		Case Typeof<AffineMat4f>
-			Local v:=jsonifier.DejsonifyArray<Float>( jvalue )
+			Local v:=jsonifier.Dejsonify<Float[]>( jvalue )
 			Return New AffineMat4f( v[0],v[1],v[2], v[3],v[4],v[5], v[6],v[7],v[8], v[9],v[10],v[11] )
 		Case Typeof<Color>
-			Local v:=jsonifier.DejsonifyArray<Float>( jvalue )
+			Local v:=jsonifier.Dejsonify<Float[]>( jvalue )
 			Return New Color( v[0],v[1],v[2],v[3] )
+		Case Typeof<Axis>
+			Return Cast<Axis>( Int( jvalue.ToNumber() ) )
 		End
 		
 		Return Null
@@ -93,7 +123,7 @@ Class InvocationJsonifierExt Extends JsonifierExt
 			jobj.SetString( "decl",decl )
 			jobj.SetString( "type",v.Decl.Type )
 			If v.Inst jobj.SetValue( "inst",jsonifier.Jsonify( v.Inst ) )
-			jobj.SetValue( "args",jsonifier.JsonifyArray( v.Args ) )
+			jobj.SetValue( "args",jsonifier.Jsonify( v.Args ) )
 			
 			Return jobj
 		End
@@ -108,9 +138,6 @@ Class InvocationJsonifierExt Extends JsonifierExt
 			
 			Local jobj:=Cast<JsonObject>( jvalue )
 			
-'			Local scope:=TypeInfo.GetType( jobj.GetString( "scope" ) )
-'			Local dname:=jobj.GetString( "decl" )
-
 			Local dname:=jobj.GetString( "decl" )
 			Local dtype:=jobj.GetString( "type" )
 			Local jinst:=jobj.Contains( "inst" ) ? jobj.GetValue( "inst" ) Else JsonValue.NullValue
@@ -160,5 +187,3 @@ Class InvocationJsonifierExt Extends JsonifierExt
 	End
 	
 End
-
-

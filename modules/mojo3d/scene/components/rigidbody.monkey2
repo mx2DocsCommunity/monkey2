@@ -35,15 +35,6 @@ End
 
 Public
 
-Class Entity Extension
-	
-	Property RigidBody:RigidBody()
-		
-		Return Cast<RigidBody>( GetComponent( RigidBody.Type ) )
-	End
-	
-End
-
 Class RigidBody Extends Component
 	
 	Const Type:=New ComponentType( "RigidBody",-10,ComponentTypeFlags.Singleton )
@@ -54,37 +45,39 @@ Class RigidBody Extends Component
 		
 		_btmotion=New MotionState( entity )
 		
-		Local collider:=entity.Collider
-		Local inertia:btVector3=collider?.CalculateLocalInertia( _mass )
+		_btbody=New btRigidBody( _mass,_btmotion,Null,Null )
 		
-		_btbody=New btRigidBody( _mass,_btmotion,collider?.Validate(),inertia )
-
-'		If Cast<MeshCollider>( collider )
-'			_btbody.setCollisionFlags( _btbody.getCollisionFlags() | btCollisionObject.CF_CUSTOM_MATERIAL_CALLBACK )
-'		Else
-'			_btbody.setCollisionFlags( _btbody.getCollisionFlags() & ~btCollisionObject.CF_CUSTOM_MATERIAL_CALLBACK )
-'		Endif
-		
+		Kinematic=False
 		Restitution=0
-		RollingFriction=0
 		Friction=1
+		RollingFriction=0
 		CollisionGroup=1
 		CollisionMask=1
+		
+		AddInstance()
 	End
 	
 	Method New( entity:Entity,body:RigidBody )
 		
-		Self.New( entity )
+		Super.New( entity,Type )
 		
+		_mass=body.Mass
+		
+		_btmotion=New MotionState( entity )
+		
+		_btbody=New btRigidBody( _mass,_btmotion,Null,Null )
+
 		Kinematic=body.Kinematic
-		Mass=body.Mass
 		Restitution=body.Restitution
 		Friction=body.Friction
 		RollingFriction=body.RollingFriction
 		CollisionGroup=body.CollisionGroup
 		CollisionMask=body.CollisionMask
+		
+		AddInstance( body )
 	End
 
+	[jsonify=1]
 	Property Kinematic:Bool()
 		
 		Return _kinematic
@@ -104,6 +97,7 @@ Class RigidBody Extends Component
 		Endif
 	End
 	
+	[jsonify=1]
 	Property Mass:Float()
 		
 		Return _mass
@@ -114,12 +108,10 @@ Class RigidBody Extends Component
 		
 		_mass=mass
 		
-		Local collider:=Entity.Collider
-		Local inertia:=collider?.CalculateLocalInertia( _mass )
-		
-		_btbody.setMassProps( _mass,inertia )
+		_dirty|=Dirty.Mass
 	End
 
+	[jsonify=1]
 	Property Restitution:Float()
 		
 		Return _btbody.getRestitution()
@@ -129,6 +121,7 @@ Class RigidBody Extends Component
 		_btbody.setRestitution( restitution )
 	End
 	
+	[jsonify=1]
 	Property Friction:Float()
 		
 		Return _btbody.getFriction()
@@ -138,6 +131,7 @@ Class RigidBody Extends Component
 		_btbody.setFriction( friction )
 	End
 	
+	[jsonify=1]
 	Property RollingFriction:Float()
 		
 		Return _btbody.getRollingFriction()
@@ -147,24 +141,7 @@ Class RigidBody Extends Component
 		_btbody.setRollingFriction( friction )
 	End
 	
-	Property LinearVelocity:Vec3f()
-		
-		Return _btbody.getLinearVelocity()
-		
-	Setter( velocity:Vec3f )
-		
-		_btbody.setLinearVelocity( velocity )
-	End
-	
-	Property AngularVelocity:Vec3f()
-		
-		Return _btbody.getAngularVelocity()
-	
-	Setter( avelocity:Vec3f )
-		
-		_btbody.setAngularVelocity( avelocity )
-	End
-
+	[jsonify=1]
 	Property CollisionGroup:Short()
 		
 		Return _collGroup
@@ -176,6 +153,7 @@ Class RigidBody Extends Component
 		_dirty|=Dirty.Collisions
 	End
 	
+	[jsonify=1]
 	Property CollisionMask:Short()
 		
 		Return _collMask
@@ -185,6 +163,66 @@ Class RigidBody Extends Component
 		_collMask=collMask
 		
 		_dirty|=Dirty.Collisions
+	End
+	
+	[jsonify=1]
+	Property LinearDamping:Float()
+		
+		Return _btbody.getLinearDamping()
+		
+	Setter( damping:Float )
+		
+		_btbody.setDamping( damping,_btbody.getAngularDamping() )
+	End
+	
+	[jsonify=1]
+	Property AngularDamping:Float()
+		
+		Return _btbody.getAngularDamping()
+	
+	Setter( damping:Float )
+		
+		_btbody.setDamping( _btbody.getLinearDamping(),damping )
+	End
+	
+	[jsonify=1]
+	Property LinearFactor:Vec3f()
+		
+		Return _btbody.getLinearFactor()
+	
+	Setter( factor:Vec3f )
+		
+		_btbody.setLinearFactor( factor )
+	End
+
+	[jsonify=1]
+	Property AngularFactor:Vec3f()
+		
+		Return _btbody.getAngularFactor()
+	
+	Setter( factor:Vec3f )
+		
+		_btbody.setAngularFactor( factor )
+	End
+	
+	[jsonify=1]
+	Property LinearVelocity:Vec3f()
+		
+		Return _btbody.getLinearVelocity()
+		
+	Setter( velocity:Vec3f )
+		
+		_btbody.setLinearVelocity( velocity )
+	End
+	
+	[jsonify=1]
+	Property AngularVelocity:Vec3f()
+		
+		Return _btbody.getAngularVelocity()
+	
+	Setter( avelocity:Vec3f )
+		
+		_btbody.setAngularVelocity( avelocity )
 	End
 	
 	Property btBody:btRigidBody()
@@ -199,12 +237,16 @@ Class RigidBody Extends Component
 
 	Method ApplyForce( force:Vec3f )
 		
+		ValidateCollider()
+		
 		_btbody.applyCentralForce( force )
 		
 		_btbody.forceActivationState( ACTIVE_TAG )
 	End
 	
 	Method ApplyForce( force:Vec3f,offset:Vec3f )
+		
+		ValidateCollider()
 		
 		_btbody.applyForce( force,offset )
 		
@@ -213,12 +255,16 @@ Class RigidBody Extends Component
 	
 	Method ApplyImpulse( impulse:Vec3f )
 		
+		ValidateCollider()
+		
 		_btbody.applyCentralImpulse( impulse )
 		
 		_btbody.forceActivationState( ACTIVE_TAG )
 	End
 	
 	Method ApplyImpulse( impulse:Vec3f,offset:Vec3f )
+		
+		ValidateCollider()
 		
 		_btbody.applyForce( impulse,offset )
 		
@@ -227,12 +273,16 @@ Class RigidBody Extends Component
 	
 	Method ApplyTorque( torque:Vec3f )
 		
+		ValidateCollider()
+		
 		_btbody.applyTorque( torque )
 		
 		_btbody.forceActivationState( ACTIVE_TAG )
 	End
 		
 	Method ApplyTorqueImpulse( torque:Vec3f )
+		
+		ValidateCollider()
 
 		_btbody.applyTorqueImpulse( torque )
 		
@@ -243,7 +293,9 @@ Class RigidBody Extends Component
 	
 	Method OnCopy:RigidBody( entity:Entity ) Override
 		
-		Return New RigidBody( entity,Self )
+		Local body:=New RigidBody( entity,Self )
+		
+		Return body
 	End
 
 	Method OnBeginUpdate() Override
@@ -286,8 +338,10 @@ Class RigidBody Extends Component
 	Private
 	
 	Enum Dirty
-		Collider=1
-		Collisions=2
+		Mass=1
+		Collider=2
+		Collisions=4
+		All=7
 	End
 	
 	Field _mass:Float=1
@@ -297,54 +351,64 @@ Class RigidBody Extends Component
 
 	Field _btmotion:MotionState
 	Field _btbody:btRigidBody
-	Field _dirty:Dirty=Null
-	
+	Field _dirty:Dirty=Dirty.All
 	Field _colliderseq:Int
 	Field _rvisible:Bool
 	Field _seq:Int
+	
+	Method ValidateCollider()
+		
+		If (_dirty & (Dirty.Collider|Dirty.Mass))=0 Return
+		
+		_dirty &= ~(Dirty.Collider|Dirty.Mass)
+		
+		If _rvisible
+			World.Remove( Self )
+			_rvisible=False
+		Endif
+		
+		Local collider:=Entity.Collider
+		
+		_btbody.setCollisionShape( collider?.Validate() )
 
+'		If Cast<MeshCollider>( collider )
+'			_btbody.setCollisionFlags( _btbody.getCollisionFlags() | btCollisionObject.CF_CUSTOM_MATERIAL_CALLBACK )
+'		Else
+'			_btbody.setCollisionFlags( _btbody.getCollisionFlags() & ~btCollisionObject.CF_CUSTOM_MATERIAL_CALLBACK )
+'		Endif
+			
+		Local inertia:btVector3=collider?.CalculateLocalInertia( _mass )
+		
+		_btbody.setMassProps( _mass,inertia )
+		
+		_btbody.updateInertiaTensor()
+	End
+	
 	Method Validate()
 		
 		Local rvisible:=Entity.ReallyVisible
 		
 		If rvisible=_rvisible And Not _dirty Return
 		
-		If Not rvisible Return
-		
-		'Have to remove/add bodies from world if collision shape changes. http://bulletphysics.org/Bullet/phpBB3/viewtopic.php?t=5194
+		'remove from world
 		'
 		If _rvisible
-			
 			World.Remove( Self )
-			
 			_rvisible=False
 		Endif
-		
-		If _dirty & Dirty.Collider
-			
-			Local collider:=Entity.Collider
-			
-			_btbody.setCollisionShape( collider?.Validate() )
 
-'			_btbody.setCollisionFlags( _btbody.getCollisionFlags() | btCollisionObject.CF_KINEMATIC_OBJECT )
-			
-'			If Cast<MeshCollider>( collider )
-'				_btbody.setCollisionFlags( _btbody.getCollisionFlags() | btCollisionObject.CF_CUSTOM_MATERIAL_CALLBACK )
-'			Else
-'				_btbody.setCollisionFlags( _btbody.getCollisionFlags() & ~btCollisionObject.CF_CUSTOM_MATERIAL_CALLBACK )
-'			Endif
-			
-			Local inertia:btVector3=collider?.CalculateLocalInertia( _mass )
-			
-			_btbody.setMassProps( _mass,inertia )
-		Endif
-	
-		If _rvisible<>rvisible
-			
-			If rvisible World.Add( Self ) Else World.Remove( Self )
-				
-			_rvisible=rvisible
-		Endif
+		'don't bother to validate if not visible
+		'		
+		If Not rvisible Return
+
+		'validate collider/mass
+		'
+		ValidateCollider()
+		
+		'add to world
+		'
+		World.Add( Self )
+		_rvisible=True
 	
 		_dirty=Null
 	End

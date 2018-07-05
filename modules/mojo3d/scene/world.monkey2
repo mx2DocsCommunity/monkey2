@@ -28,6 +28,12 @@ Class World
 		Local solver:=New btSequentialImpulseConstraintSolver()
 		
 		_btworld=New btDiscreteDynamicsWorld( dispatcher,broadphase,solver,config )
+
+'	//from BenchmarkDemo.cpp!		
+'	///the following 3 lines increase the performance dramatically, with a little bit of loss of quality
+'	m_dynamicsWorld->getSolverInfo().m_solverMode |=SOLVER_ENABLE_FRICTION_DIRECTION_CACHING; //don't recalculate friction values each frame
+'	m_dynamicsWorld->getSolverInfo().m_numIterations = 5; //few solver iterations 
+'	//m_defaultContactProcessingThreshold = 0.f;//used when creating bodies: body->setContactProcessingThreshold(...);
 		
 		initCollisions( _btworld )
 
@@ -62,9 +68,12 @@ Class World
 		Return New RayCastResult( Varptr btresult )
 	End
 	
-	Method ConvexSweep:RayCastResult( collider:ConvexCollider,castFrom:AffineMat4f,castTo:AffineMat4f )
+	Method ConvexSweep:RayCastResult( collider:ConvexCollider,castFrom:AffineMat4f,castTo:AffineMat4f,collisionMask:Int )
 		
 		Local btresult:=New btCollisionWorld.ClosestConvexResultCallback( castFrom.t,castTo.t )
+
+		btresult.m_collisionFilterGroup=collisionMask
+		btresult.m_collisionFilterMask=collisionMask
 		
 		_btworld.convexSweepTest( Cast<btConvexShape>( collider.Validate() ),castFrom,castTo,Cast<btCollisionWorld.ConvexResultCallback Ptr>( Varptr btresult ),0 )
 		
@@ -73,16 +82,16 @@ Class World
 		Return New RayCastResult( Varptr btresult )
 	End
 	
-	Method ConvexSweep:RayCastResult( collider:ConvexCollider,castFrom:Vec3f,castTo:Vec3f )
+	Method ConvexSweep:RayCastResult( collider:ConvexCollider,castFrom:Vec3f,castTo:Vec3f,collisionMask:Int )
 		
-		Return ConvexSweep( collider,AffineMat4f.Translation( castFrom ),AffineMat4f.Translation( castTo ) )
+		Return ConvexSweep( collider,AffineMat4f.Translation( castFrom ),AffineMat4f.Translation( castTo ),collisionMask )
 	End
 
 	Method Update( elapsed:Float )
 		
 		resetCollisions()
 		
-		_btworld.stepSimulation( 1.0/_scene.UpdateRate )
+		_btworld.stepSimulation( elapsed,_scene.MaxSubSteps,1.0/_scene.UpdateRate )
 		
 		Local n:=getNumCollisions()
 		
@@ -107,7 +116,6 @@ Class World
 		Next
 		
 		resetCollisions()
-		
 	End
 	
 	Property btWorld:btDynamicsWorld()
@@ -126,6 +134,8 @@ Class World
 		Local btbody:=body.btBody
 		
 		btbody.setUserPointer( Cast<Void Ptr>( body ) )
+		
+'		btbody.setWorldTransform( body.Entity.Matrix )
 		
 		_btworld.addRigidBody( btbody,body.CollisionGroup,body.CollisionMask )
 	End
@@ -148,8 +158,6 @@ Class World
 	Field _scene:Scene
 	
 	Field _btworld:btDynamicsWorld
-	
-	Field _newBodies:=New Stack<RigidBody>
 	
 	Field _bodies:=New Stack<RigidBody>
 

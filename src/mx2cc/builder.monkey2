@@ -15,6 +15,8 @@ Class BuildOpts
 	
 	Field config:String
 	
+	Field threads:Bool
+	
 	Field clean:Bool
 	
 	Field product:String
@@ -116,6 +118,8 @@ Class BuilderInstance
 		
 		ppsyms["__MAKEDOCS__"]=opts.makedocs ? "true" Else "false"
 
+		ppsyms["__THREADS__"]=opts.threads ? "true" Else "false"
+
 		profileName=opts.target+"_"+opts.config
 		
 		If opts.target="windows"
@@ -130,6 +134,8 @@ Class BuilderInstance
 				
 		Endif
 		
+		If opts.threads profileName+="_mx"
+		
 		If opts.productType="app" APP_DIR=ExtractDir( opts.mainSource )
 		
 		ClearPrimTypes()
@@ -141,7 +147,7 @@ Class BuilderInstance
 	
 	Method Parse()
 	
-		If opts.verbose=0 Print "Parsing..."
+		If opts.verbose>=0 Print "Parsing..."
 		
 		Local name:=StripDir( StripExt( opts.mainSource ) )
 
@@ -202,13 +208,8 @@ Class BuilderInstance
 			
 			Local path:=MX2_SRCS.Pop()
 			
-			If opts.verbose>0 Print "Parsing "+path
-#rem				
-			Local ipath:=RealPath( path )
-			If path.StartsWith( module.baseDir )
-				ipath=ipath.Slice( module.baseDir.Length )
-			Endif
-#end
+			If opts.verbose>=2 Print path
+				
 			Local ipath:=MakeRelativePath( StripExt( path ),module.baseDir )
 
 			Local ident:=module.ident+"_"+Identize( ipath )
@@ -234,6 +235,7 @@ Class BuilderInstance
 			For Local imp:=0 Until fdecl.imports.Length
 				
 				Local path:=fdecl.imports[imp]
+				
 				
 				Local i:=path.FindLast( "[" )
 				If i<>-1 And path.EndsWith( "]" )
@@ -314,7 +316,7 @@ Class BuilderInstance
 
 	Method Semant()
 	
-		If opts.verbose=0 Print "Semanting..."
+		If opts.verbose>=0 Print "Semanting..."
 		
 		SortModules()
 		
@@ -322,12 +324,8 @@ Class BuilderInstance
 		
 			Local module:=modules[i]
 			
-'			Print ""		
-'			Print "Semanting module:"+module.srcPath
-'			Print ""
-			
 			For Local fdecl:=Eachin module.fileDecls
-			
+
 				Local fscope:=New FileScope( fdecl )
 				
 				module.fileScopes.Push( fscope )
@@ -352,10 +350,9 @@ Class BuilderInstance
 			
 			For Local fscope:=Eachin module.fileScopes
 			
-				If opts.verbose>0 Print "Semanting "+fscope.fdecl.path
+				If opts.verbose>=2 Print fscope.fdecl.path
 			
 				fscope.Semant()
-				
 			Next
 			
 			Repeat
@@ -417,7 +414,7 @@ Class BuilderInstance
 				Endif
 			Endif
 			
-			'Ugly stuff for generic instances - needs more FIXING!
+			'Ugly stuff for generic instances - but hey, it works!
 			'
 			Local transFiles:=New StringMap<FileDecl>
 			
@@ -441,7 +438,7 @@ Class BuilderInstance
 				Endif
 				
 				If Not transFile Or transFile.module=module Continue
-
+				
 				Local transFile2:=transFile
 
 				transFile=transFiles[transFile2.ident]
@@ -463,7 +460,6 @@ Class BuilderInstance
 					transFile.exhfile=transFile2.hfile
 					transFile.hfile=module.hfileDir+transFile.ident+".h"
 					transFile.cfile=module.cfileDir+transFile.ident+".cpp"
-'					transFile.rfile=module.cfileDir+"r_"+transFile.ident+".cpp"
 					
 					transFiles[transFile2.ident]=transFile
 					
@@ -492,7 +488,7 @@ Class BuilderInstance
 	
 	Method Translate()
 	
-		If opts.verbose=0 Print "Translating..."
+		If opts.verbose>=0 Print "Translating..."
 		
 		Local module:=mainModule
 		
@@ -584,6 +580,7 @@ Class BuilderInstance
 		Type.ThrowableClass=TCast<ClassType>( types.nodes["@throwable"] )
 
 		Type.CStringClass=TCast<ClassType>( types.nodes["@cstring"] )
+		Type.WStringClass=TCast<ClassType>( types.nodes["@wstring"] )
 		Type.TypeInfoClass=TCast<ClassType>( types.nodes["@typeinfo"] )
 
 		rootNamespace.Insert( "void",Type.VoidType )
@@ -605,6 +602,7 @@ Class BuilderInstance
 		rootNamespace.Insert( "throwable",Type.ThrowableClass )
 
 		rootNamespace.Insert( "cstring",Type.CStringClass )
+		rootNamespace.Insert( "wstring",Type.WStringClass )
 		rootNamespace.Insert( "typeinfo",Type.TypeInfoClass )
 		
 		Type.BoolType.Semant()
@@ -624,6 +622,7 @@ Class BuilderInstance
 		Type.ObjectClass.Semant()
 		Type.ThrowableClass.Semant()
 		Type.CStringClass.Semant()
+		Type.WStringClass?.Semant()
 		Type.TypeInfoClass.Semant()
 	End
 	
@@ -671,7 +670,7 @@ Class BuilderInstance
 		Case ".lib"
 			
 			If opts.toolchain="msvc"
-				product.LIB_FILES.Push( name )
+				product.LIB_FILES.Push( StripDir( path ) )'name )
 			Else
 				product.LIB_FILES.Push( "-l"+name )
 			Endif

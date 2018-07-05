@@ -7,6 +7,10 @@
 #include <cwctype>
 #include <clocale>
 
+#ifdef BB_THREADS
+#include <mutex>
+#endif
+
 bbString::Rep bbString::_nullRep;
 
 #if BB_ANDROID
@@ -28,37 +32,42 @@ namespace{
 	jmethodID jmethod_capitalize;
 
 	bbString JStringToString( JNIEnv *env,jstring jstr ){
-	
 		if( !jstr ) return "";
-	
 		const char *cstr=env->GetStringUTFChars( jstr,0 );
-		
 		bbString str=bbString::fromCString( cstr );
-		
 		env->ReleaseStringUTFChars( jstr,cstr );
-		
 		return str;
 	}
 	
 	jstring StringToJString( JNIEnv *env,bbString str ){
-	
 		int n=str.utf8Length()+1;
-		
 		char *buf=new char[n];
-		
 		str.toCString( buf,n );
-		
 		jstring jstr=env->NewStringUTF( buf );
-		
 		return jstr;
+	}
+	
+	bbString invokeStaticStringMethod( jmethodID jmethod,bbString arg ){
+		JNIEnv *env=(JNIEnv*)SDL_AndroidGetJNIEnv();
+		jstring jarg=StringToJString( env,arg );
+		jstring jres=(jstring)env->CallStaticObjectMethod( jclass_lang,jmethod,jarg );
+		bbString res=JStringToString( env,jres );
+		env->DeleteLocalRef( jres );
+		env->DeleteLocalRef( jarg );
+		return res;
 	}
 #endif
 	
 	void initLocale(){
 	
+#if BB_THREADS
+		static std::atomic_bool inited;
+		if( inited.exchange( true ) ) return;
+#else
 		static bool inited;
 		if( inited ) return;
 		inited=true;
+#endif
 		
 #if BB_ANDROID
 		JNIEnv *env=(JNIEnv*)SDL_AndroidGetJNIEnv();
@@ -208,8 +217,9 @@ bbString::bbString( const void *p ){
 		_rep=Rep::create( cp,sz );
 		return;
 	}
-	_rep=Rep::alloc( n );
-	utf8ToChars( cp,_rep->data,n );
+	Rep *rep=Rep::alloc( n );
+	utf8ToChars( cp,rep->data,n );
+	_rep=rep;
 }
 
 bbString::bbString( const void *p,int sz ){
@@ -227,8 +237,9 @@ bbString::bbString( const void *p,int sz ){
 		_rep=Rep::create( cp,sz );
 		return;
 	}
-	_rep=Rep::alloc( n );
-	utf8ToChars( cp,_rep->data,n );
+	Rep *rep=Rep::alloc( n );
+	utf8ToChars( cp,rep->data,n );
+	_rep=rep;
 }
 
 bbString::bbString( const bbChar *data ):_rep( Rep::create( data ) ){
@@ -326,8 +337,8 @@ bbString::bbString( double n ){
 }
 
 void bbString::toCString( void *buf,int size )const{
-
-	charsToUtf8( _rep->data,_rep->length,(char*)buf,size );
+	Rep *rep=_rep;
+	charsToUtf8( rep->data,rep->length,(char*)buf,size );
 }
 
 void bbString::toWString( void *buf,int size )const{
@@ -347,12 +358,23 @@ const char *bbString::c_str()const{
 
 	static int _sz;
 	static char *_tmp;
-	
+
 	int sz=utf8Length()+1;
+	
+#ifdef BB_THREADS
+	std::mutex _mutex;
+	_mutex.lock();
+#endif
+
 	if( sz>_sz ){
 		::free( _tmp );
 		_tmp=(char*)::malloc( _sz=sz );
 	}
+	
+#ifdef BB_THREADS
+	_mutex.unlock();
+#endif
+	
 	toCString( _tmp,sz );
 	return _tmp;
 }
@@ -463,7 +485,7 @@ bbString bbString::operator*( int n )const{
 	Rep *rep=Rep::alloc( length()*n );
 	bbChar *p=rep->data;
 	for( int j=0;j<n;++j ){
-		for( int i=0;i<_rep->length;++i ) *p++=data()[i];
+		for( int i=0;i<length();++i ) *p++=data()[i];
 	}
 	return rep;
 }
@@ -519,8 +541,7 @@ bbString bbString::slice( int from,int term )const{
 bbString bbString::toUpper()const{
 	initLocale();
 #if BB_ANDROID
-	JNIEnv *env=(JNIEnv*)SDL_AndroidGetJNIEnv();
-	return JStringToString( env,(jstring)env->CallStaticObjectMethod( jclass_lang,jmethod_toUpper,StringToJString( env,*this ) ) );
+	return invokeStaticStringMethod( jmethod_toUpper,*this );
 #else
 	Rep *rep=Rep::alloc( length() );
 	for( int i=0;i<length();++i ) rep->data[i]=::towupper( data()[i] );
@@ -531,8 +552,7 @@ bbString bbString::toUpper()const{
 bbString bbString::toLower()const{
 	initLocale();
 #if BB_ANDROID
-	JNIEnv *env=(JNIEnv*)SDL_AndroidGetJNIEnv();
-	return JStringToString( env,(jstring)env->CallStaticObjectMethod( jclass_lang,jmethod_toLower,StringToJString( env,*this ) ) );
+	return invokeStaticStringMethod( jmethod_toLower,*this );
 #else
 	Rep *rep=Rep::alloc( length() );
 	for( int i=0;i<length();++i ) rep->data[i]=::towlower( data()[i] );
@@ -543,8 +563,7 @@ bbString bbString::toLower()const{
 bbString bbString::capitalize()const{
 	initLocale();
 #if BB_ANDROID
-	JNIEnv *env=(JNIEnv*)SDL_AndroidGetJNIEnv();
-	return JStringToString( env,(jstring)env->CallStaticObjectMethod( jclass_lang,jmethod_capitalize,StringToJString( env,*this ) ) );
+	return invokeStaticStringMethod( jmethod_capitalize,*this );
 #else
 	if( !length() ) return &_nullRep;
 	Rep *rep=Rep::alloc( length() );
@@ -583,7 +602,7 @@ bbString bbString::dup( int n )const{
 	Rep *rep=Rep::alloc( length()*n );
 	bbChar *p=rep->data;
 	for( int j=0;j<n;++j ){
-		for( int i=0;i<_rep->length;++i ) *p++=data()[i];
+		for( int i=0;i<length();++i ) *p++=data()[i];
 	}
 	return rep;
 }

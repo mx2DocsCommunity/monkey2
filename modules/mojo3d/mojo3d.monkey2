@@ -30,6 +30,7 @@ Using reflection..
 #Import "scene/components/animator"
 #Import "scene/components/rigidbody"
 #Import "scene/components/collider"
+#Import "scene/components/joint"
 #Import "scene/components/behaviour"
 #Import "scene/components/flybehaviour"
 #Import "scene/components/movebehaviour"
@@ -37,12 +38,13 @@ Using reflection..
 
 #Import "scene/entities/camera"
 #Import "scene/entities/light"
+#Import "scene/entities/pivot"
+#Import "scene/entities/renderable"
 #Import "scene/entities/model"
+#Import "scene/entities/sprite"
 #Import "scene/entities/particlebuffer"
 #Import "scene/entities/particlematerial"
 #Import "scene/entities/particlesystem"
-#Import "scene/entities/renderable"
-#Import "scene/entities/sprite"
 
 #Import "scene/materials/pbrmaterial"
 #Import "scene/materials/spritematerial"
@@ -50,6 +52,9 @@ Using reflection..
 
 #Import "scene/effects/bloomeffect"
 #Import "scene/effects/monochromeeffect"
+#Import "scene/effects/reflectioneffect"
+#Import "scene/effects/godrayseffect"
+#Import "scene/effects/fxaaeffect"
 
 #Import "scene/jsonifier/jsonifier"
 #Import "scene/jsonifier/invocation"
@@ -59,7 +64,6 @@ Using reflection..
 #Import "scene/mesh"
 #Import "scene/meshprims"
 #Import "scene/bttypeconvs"
-'#Import "scene/util3d"
 
 #Import "render/renderer"
 #Import "render/renderqueue"

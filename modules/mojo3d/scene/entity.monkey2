@@ -3,7 +3,7 @@ Namespace mojo3d
 
 #rem monkeydoc The Entity class.
 #end
-Class Entity Extends DynamicObject
+Class Entity Extends DynamicObject Abstract
 	
 	#rem monkeydoc Copied signal.
 	
@@ -99,6 +99,7 @@ Class Entity Extends DynamicObject
 	
 	#rem monkeydoc Parent entity.
 	#end
+	[jsonify=1]
 	Property Parent:Entity()
 		
 		Return _parent
@@ -410,41 +411,43 @@ Class Entity Extends DynamicObject
 
 	#rem monkeydoc Gets the number of components of a given type attached to the entity.
 	#end
-	Method NumComponents:Int( type:ComponentType )
+	Method NumComponents<T>:Int() Where T Extends Component
 		
 		Local n:=0
 		For Local c:=Eachin _components
-			If c.Type=type n+=1
+			If Cast<T>( c ) n+=1
 		Next
+		
 		Return n
 	End
-
-	Method NumComponents<T>:Int() Where T Extends Component
-		
-		Return NumComponents( T.Type )
-	End
-
+	
 	#rem monkeydoc Gets a component of a given type attached to the entity.
 	
-	If there is not exactly one component of the given type attached to the entity, null is returned.
+	If there is more than one component of the given type attached, the first is returned.
 
 	#end	
-	Method GetComponent:Component( type:ComponentType )
-
-		Local t:Component
-				
-		For Local c:=Eachin _components
-			If c.Type<>type Continue
-			If t Return Null
-			t=c
-		Next
-		
-		Return t
-	End
-	
 	Method GetComponent<T>:T() Where T Extends Component
 		
-		Return Cast<T>( GetComponent( T.Type ) )
+		For Local c:=Eachin _components
+			Local t:=Cast<T>( c )
+			If t Return t
+		Next
+		
+		Return Null
+	End
+	
+	Method GetComponents<T>:T[]() Where T Extends Component
+		
+		Local cs:=New Component[NumComponents<T>()],i:=0
+		
+		For Local c:=Eachin _components
+			Local t:=Cast<T>( c ) 
+			If Not t Continue
+			cs[i]=t
+			i+=1
+		Next
+		
+		Return cs
 	End
 	
 	#rem monkeydoc Attaches a component to the entity.
@@ -474,7 +477,9 @@ Class Entity Extends DynamicObject
 	
 	Method OnCopy:Entity( parent:Entity ) Virtual
 		
-		Return New Entity( Self,parent )
+		RuntimeError( "Cannot copy Entity" )
+		
+		Return Null
 	End
 		
 	#rem monkeydoc Invoked when entity transitions from hidden->visible.
@@ -573,6 +578,17 @@ Class Entity Extends DynamicObject
 	End
 	
 	'top down
+	Method Start()
+		
+		For Local c:=Eachin _components
+			c.OnStart()
+		Next
+		
+		For Local e:=Eachin _children
+			e.Start()
+		End
+	End
+	
 	Method Update( elapsed:Float )
 		
 		For Local c:=Eachin _components

@@ -263,19 +263,21 @@ Class GraphicsDevice
 		Return _ublocks[block]
 	End
 	
-	Method CopyPixmap:Pixmap( rect:Recti )
-	
+	Method CopyPixels( rect:Recti,pixmap:Pixmap,dstx:Int,dsty:Int )
+		
 		Validate()
-
-		Local pixmap:=New Pixmap( rect.Width,rect.Height,PixelFormat.RGBA32 )
 		
-		glReadPixels( rect.X,rect.Y,rect.Width,rect.Height,GL_RGBA,GL_UNSIGNED_BYTE,pixmap.Data )
+		glReadPixels( rect.X,rect.Y,rect.Width,rect.Height,GL_RGBA,GL_UNSIGNED_BYTE,pixmap.PixelPtr( dstx,dsty ) )
 		
-		If Not _rtarget pixmap.FlipY()
-		
-		Return pixmap
+		If Not _rtarget And rect.Height>1
+			If rect.min.x<>0 Or rect.min.y<>0 Or rect.Size<>_rtargetSize
+				pixmap.Window( rect.X,rect.Y,rect.Width,rect.Height ).FlipY()
+			Else
+				pixmap.FlipY()
+			End
+		Endif
 	End
-
+	
 	Method Clear( color:Color,depth:Float=1 )
 		
 		Validate()
@@ -363,6 +365,27 @@ Class GraphicsDevice
 		
 		glCheck()
 	End
+
+	Method FlushTarget()
+		
+		'Print "GraphicsDevice.FlushTarget _modified="+_modified
+		
+		If Not _modified Return
+		
+		_modified=False
+		
+		If Not _rtarget Or Not _rtarget.NumColorTextures Return
+			
+'		Validate()
+			
+		For Local i:=0 Until _rtarget.NumColorTextures
+			
+			Local texture:=_rtarget.GetColorTexture( i )
+			
+			texture.Modified( _viewport & _scissor )
+		Next
+		
+	End
 	
 	Private
 	
@@ -445,25 +468,6 @@ Class GraphicsDevice
 		Endif
 			
 		glCheck()
-	End
-	
-	Method FlushTarget()
-		
-		If Not _modified Return
-		
-		_modified=False
-		
-		If Not _rtarget Or Not _rtarget.NumColorTextures Return
-			
-'		Validate()
-			
-		For Local i:=0 Until _rtarget.NumColorTextures
-			
-			Local texture:=_rtarget.GetColorTexture( i )
-			
-			texture.Modified( _viewport & _scissor )
-		Next
-		
 	End
 	
 	Method Validate()

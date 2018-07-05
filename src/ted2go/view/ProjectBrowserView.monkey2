@@ -28,8 +28,12 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 		NodeCollapsed+=OnNodeCollapsed
 		
 		App.Activated+=Lambda()
-		
+			
+			Local sc:=Scroll
+			
 			UpdateAllNodes()
+			
+			Scroll=sc
 		End
 		
 		UpdateFileTypeIcons()
@@ -41,8 +45,9 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 		
 		New Fiber( Lambda()
 			
+			Local point:=eventLocation-Scroll
 			Local node:=Cast<Node>( item )
-			Local node2:=FindNodeAtPoint( eventLocation )
+			Local node2:=FindNodeAtPoint( point )
 			If Not node2 Return
 			
 			Local destNode:=Cast<Node>( node2 )
@@ -120,11 +125,46 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 	Method OnDragStarted()
 		
 		_draggingState=True
+		
+		' timer for dragging stuff: scroll & expand
+		'
+		If _draggingAutoscrollTimer Then _draggingAutoscrollTimer.Cancel()
+		_draggingAutoscrollTimer=New Timer( 15,Lambda()
+			
+			If _draggingAutoscrollValue
+				
+				' autoscroll
+				'
+				Local sc:=Scroll
+				sc.y+=_draggingAutoscrollValue
+				Scroll=sc
+			
+			Else
+				
+				' autoexpand
+				'
+				Local point:=MainWindow.TransformPointToView( App.MouseLocation,Self )
+				Local node:=FindNodeAtPoint( point )
+				If node And Not node.Expanded And node.Children
+					If node<>_draggingNodeToExpand
+						_draggingNodeToExpand=node
+						_draggingExpandCounter=0
+					Endif
+					_draggingExpandCounter+=1
+					If _draggingExpandCounter>=15
+						node.Expanded=True
+						OnNodeExpanded( node )
+					Endif
+				Endif
+			Endif
+			
+		End )
 	End
 	
 	Method OnDragEnded()
 		
 		_draggingState=False
+		If _draggingAutoscrollTimer Then _draggingAutoscrollTimer.Cancel()
 	End
 	
 	Method OnFileDropped:Bool( path:String )
@@ -166,25 +206,76 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 		Return New Node( parent,Self )
 	End
 	
-	Method AddProject( dir:String )
-		
-		Local node:=NewNode( _rootNode )
-		Local s:=StripDir( dir )+" ("+dir+")"
-		node.Text=s
-		node._path=dir
-		UpdateProjIcon( node )
-		_expander.Restore( node )
-		
-		UpdateNode( node )
-		ApplyFilter( node )
+	Method SetActiveProject( project:Monkey2Project )
+	
+		For Local n:=Eachin RootNode.Children
+			Local node:=Cast<Node>( n )
+			Local s:=PrepareProjectName( node._project )
+			If node._project=project Then s="+"+s
+			node.Text=s
+		Next
 	End
 	
-	Method RemoveProject( dir:String )
+	Method SetMainFile( path:String,set:Bool )
+		
+		If Not Prefs.MainProjectIcons Return
+		
+		Local node:=_rootNode.FindNodeByPath( path )
+		If node
+			node.Icon=set ? ThemeImages.Get( "project/monkey2main.png" ) Else GetFileTypeIcon( node._path )
+		Endif
+	End
 	
-		Local s:=StripDir( dir )+" ("+dir+")"
+	Method AddProject( project:Monkey2Project )
+	
+		Local node:=NewNode( _rootNode )
+		Local s:=PrepareProjectName( project )
+		node.Text=s
+		node._path=project.Folder
+		node._project=project
+		UpdateProjIcon( node )
+		_expander.Restore( node )
+	
+		UpdateNode( node )
+		ApplyFilter( node )
+		
+		Local mainFile:=project.MainFilePath
+		If mainFile Then SetMainFile( mainFile,True )
+		
+	End
+	
+	Method RefreshProject( project:Monkey2Project )
+		
+		Local folder:=project.Folder
+		Local projNode:Node=Null
+		For Local n:=Eachin RootNode.Children
+			Local node:=Cast<Node>( n )
+			If node._project.Folder=folder
+				projNode=node
+				Exit
+			Endif
+		Next
+		
+		If Not projNode Return
+		
+		projNode._project=project
+		UpdateProjIcon( projNode )
+		_expander.Restore( projNode )
+	
+		UpdateNode( projNode )
+		ApplyFilter( projNode )
+	
+		Local mainFile:=project.MainFilePath
+		If mainFile Then SetMainFile( mainFile,True )
+		
+	End
+	
+	Method RemoveProject( project:Monkey2Project )
+	
 		Local toRemove:TreeView.Node=Null
 		For Local n:=Eachin RootNode.Children
-			If n.Text=s
+			Local node:=Cast<Node>( n )
+			If node._project=project
 				toRemove=n
 				Exit
 			Endif
@@ -225,6 +316,18 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 		If node Then Refresh( node )
 	End
 	
+	Method CollapseAll( node:TreeView.Node )
+		
+		For Local child:=Eachin node.Children
+			CollapseAll( child )
+		Next
+		
+		If node.Expanded
+			node.Expanded=False
+			OnCollapsed( node,False )
+		Endif
+	End
+	
 	
 	Protected
 	
@@ -239,6 +342,10 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 	
 		Property Path:String()
 			Return _path
+		End
+		
+		Property Project:Monkey2Project()
+			Return _project
 		End
 		
 		Property Detachable:Bool()
@@ -264,12 +371,30 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 			_view=view
 		End
 		
+		Method FindNodeByPath:Node( path:String )
+			
+			If Children
+				For Local i:=Eachin Children
+					Local n:=Cast<Node>( i )
+					If n._path=path Return n
+					If n.Children
+						n=n.FindNodeByPath( path )
+						If n Return n
+					Endif
+				Next
+			Endif
+			
+			Return Null
+		End
+		
+		
 		Private
-	
+		
 		Field _path:String
 		Field _holders:ProjectBrowserView[]
 		Field _curHolder:ProjectBrowserView
 		Field _view:View
+		Field _project:Monkey2Project
 		
 	End
 	
@@ -332,6 +457,10 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 	Field _draggableView:Button
 	Field _draggingState:Bool
 	Field _draggingText:String
+	Field _draggingAutoscrollValue:=0
+	Field _draggingAutoscrollTimer:Timer
+	Field _draggingNodeToExpand:TreeView.Node
+	Field _draggingExpandCounter:=0
 	
 	Global _listener:DraggableProjTreeListener
 	
@@ -352,16 +481,24 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 		Return True
 	End
 	
+	Method PrepareProjectName:String( project:Monkey2Project )
+		
+		Local dir:=project.Folder
+		Return StripDir( dir )+" ("+dir+")"
+	End
+	
 	Method OnDraggedInto( node:Node,name:String )
 		
-		Local path:=node.Text+"\"+name
+		Local path:=GetNodePath( node )+"\"+name
 		
 		node.Expanded=True
 		_expander.Store( node )
 		Local par:=IsProjectNode( node ) ? node Else node.Parent
 		OnNodeExpanded( par ) 'update parent folder
 		
-		SelectByPathEnds( path )
+		MainWindow.UpdateWindow( False )
+		
+		SelectByPath( path )
 		
 	End
 	
@@ -369,6 +506,21 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 		
 		If _draggingState
 			_draggableView.Text=(Keyboard.Modifiers & Modifier.Control = 0) ? _draggingText Else _draggingText+" (copy)"
+			
+			' autoscrolling area in dragging state
+			'
+			Local y:=MainWindow.TransformPointToView( App.MouseLocation,Self ).y
+			Local h:=Frame.Height
+			Local dy:=35*App.Theme.Scale.x
+			Local val:=20*App.Theme.Scale.x
+			
+			If y<dy
+				_draggingAutoscrollValue=-val
+			Elseif y>h-dy
+				_draggingAutoscrollValue=val
+			Else
+				_draggingAutoscrollValue=0
+			Endif
 		Endif
 	End
 	
@@ -421,12 +573,12 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 	
 	Method UpdateFilterItems( projNode:Node )
 		
-		Local path:=projNode.Path+"/project.json"
-		If GetFileType( path ) <> FileType.File Return
+		Local proj:=projNode._project
+		If proj.IsFolderBased Return
 		
 		Local projName:=projNode.Text
 		
-		Local t:=GetFileTime( path )
+		Local t:=proj.Modified
 		If t=_filtersFileTimes[projName] Return
 		
 		_filtersFileTimes[projName]=t
@@ -434,13 +586,10 @@ Class ProjectBrowserView Extends TreeViewExt Implements IDraggableHolder
 		Local list:=GetOrCreate( _filters,projName )
 		list.Clear()
 		
-		Local json:=JsonObject.Load( path )
-		If json.Contains( "exclude" )
-			For Local i:=Eachin json["exclude"].ToArray()
-				Local f:=New TextFilter( i.ToString() )
-				list+=f
-			Next
-		Endif
+		For Local i:=Eachin proj.Excluded
+			Local f:=New TextFilter( i )
+			list+=f
+		Next
 	End
 	
 	Method UpdateProjIcon( node:TreeView.Node )
@@ -665,12 +814,36 @@ Class DraggableProjTreeListener Extends DraggableViewListener<ProjectBrowserView
 		
 		Local projTree:=FindViewInHierarchy<ProjectBrowserView>( eventView )
 		
-		Return Cast<ProjectBrowserView.Node>( projTree?.FindNodeAtPoint( eventLocation ) )
+		If projTree
+			Local point:=eventLocation-projTree.Scroll
+			Return Cast<ProjectBrowserView.Node>( projTree?.FindNodeAtPoint( point ) )
+		Endif
+		
+		Return Null
 	End
 	
 	Method GetHolder:ProjectBrowserView( view:View ) Override
 	
 		Return Cast<ProjectBrowserView>( view )
+	End
+	
+End
+
+
+Class View Extension
+	
+	#Rem monkeydoc Return this view or nearest parent view with a given type of T.
+	#End
+	Method FindView<T>:T( checkSelf:Bool=False ) Where T Extends View
+		
+		Local view:=checkSelf ? Self Else Self.Parent
+		While view
+			Local res:=Cast<T>( view )
+			If res Return res
+			view=view.Parent
+		Wend
+		
+		Return null
 	End
 	
 End

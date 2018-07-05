@@ -1,6 +1,17 @@
 
 Namespace ted2go
 
+#Rem monkeydoc Capitalize of numOfChars first chars of the string.
+#End
+Function Capitalize:String( str:String,numOfChars:Int=1 )
+	
+	If numOfChars>=str.Length
+		Return str.ToUpper()
+	Endif
+	
+	Return str.Slice( 0,numOfChars ).ToUpper()+str.Slice( numOfChars )
+End
+
 
 Class TextUtils Final
 	
@@ -12,6 +23,11 @@ Class TextUtils Final
 		Endif
 	
 		Return _spacesForTab
+	End
+	
+	Function GetIndentStr:String()
+		
+		Return Prefs.EditorUseSpacesAsTabs ? GetSpacesForTabEquivalent() Else "~t"
 	End
 	
 	Function GetPosInLineCheckingTabSize:Int( line:String,posInLine:Int,tabSize:Int )

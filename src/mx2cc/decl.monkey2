@@ -104,7 +104,8 @@ End
 
 Class FileDecl Extends Decl
 
-	Field path:String
+	Field path:String		'path for .monkey2 file
+	Field gpath:String		'path for .geninfo file
 	Field nmspace:String
 	Field usings:String[]
 	Field imports:String[]
@@ -118,6 +119,7 @@ Class FileDecl Extends Decl
 	
 	Field enums:=New Stack<EnumType>
 	Field classes:=New Stack<ClassType>
+	Field extclasses:=New Stack<ClassType>
 	Field globals:=New Stack<VarValue>
 	Field functions:=New Stack<FuncValue>
 	

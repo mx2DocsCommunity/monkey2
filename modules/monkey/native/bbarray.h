@@ -2,7 +2,11 @@
 #ifndef BB_ARRAY_H
 #define BB_ARRAY_H
 
+#ifdef BB_THREADS
+#include "bbgc_mx.h"
+#else
 #include "bbgc.h"
+#endif
 
 template<class T,int D> struct bbArray{
 
@@ -81,9 +85,11 @@ template<class T,int D> struct bbArray{
 		void *p=bbGC::malloc( sizeof( Rep )+sizes[D-1]*sizeof(T) );
 			
 		_rep=new( p ) Rep( sizes );
-			
-		int i=0;
-		for( auto it=init.begin();it!=init.end();++it ) _rep->_data[i++]=*it;
+		
+		int i=0,n=sizes[D-1];
+		bbDebugAssert( n==init.size(),"Incorrect number of array initializers" );
+
+		for( auto it=init.begin();i<n; )_rep->_data[i++]=*it++;
 			
 		bbGC::endCtor( _rep );
 	}

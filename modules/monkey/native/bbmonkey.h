@@ -7,13 +7,19 @@
 #include "bbassert.h"
 #include "bbstring.h"
 #include "bbdebug.h"
-#include "bbgc.h"
 #include "bbarray.h"
 #include "bbfunction.h"
 #include "bbobject.h"
+#include "bbweakref.h"
 #include "bbvariant.h"
 #include "bbtypeinfo_t.h"
 #include "bbdeclinfo.h"
+
+#ifdef BB_THREADS
+#include "bbgc_mx.h"
+#else
+#include "bbgc.h"
+#endif
 
 extern int bb_argc;
 

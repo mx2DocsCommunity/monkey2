@@ -37,6 +37,9 @@ inline bbString bbDBValue( bbFloat *p ){ return bbString(*p); }
 inline bbString bbDBValue( bbDouble *p ){ return bbString(*p); }
 extern bbString bbDBValue( bbString *p );
 
+template<class R,class...A> bbString bbDBType( R(*)(A...) ){ return "Extern?(?)"; }
+template<class R,class...A> bbString bbDBValue( R(*)(A...) ){ return "?"; }
+
 template<class T> bbString bbDBType(){
 	return bbDBType( (T*)0 );
 }
@@ -79,8 +82,8 @@ struct bbDBContext{
 	bbDBFrame *frames=nullptr;
 	bbDBVar *localsBuf=nullptr;
 	bbDBVar *locals=nullptr;
-	int stepMode;
-	int stopped;
+	int stepMode=0;
+	int stopped=0;
 
 	~bbDBContext();
 	
@@ -89,20 +92,19 @@ struct bbDBContext{
 
 namespace bbDB{
 
+#ifdef BB_THREADS	
+	extern std::atomic_int nextSeq;
+	extern thread_local bbDBContext *currentContext;
+#else
 	extern int nextSeq;
-
 	extern bbDBContext *currentContext;
+#endif
 	
 	void init();
-	
 	void stop();
-	
 	void stopped();
-	
 	void error( bbString err );
-	
 	bbArray<bbString> stack();
-	
 	void emitStack();
 }
 
