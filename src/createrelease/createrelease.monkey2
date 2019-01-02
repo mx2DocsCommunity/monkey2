@@ -5,9 +5,9 @@
 Using libc..
 Using std..
 
-Const MONKEY2_VERSION:="2018.06"
+Const MONKEY2_VERSION:="2018.09"
 
-Const MX2CC_VERSION:="1.1.14"
+Const MX2CC_VERSION:="1.1.15"
 
 Const RELEASE_SUFFIX:=""
 
@@ -62,7 +62,7 @@ Function CopyFiles( dir:String )
 		Select GetFileType( src )
 		Case FileType.Directory
 			
-			If file="__PAGES__" Or file="__MANPAGES__"
+			If file=".mx2" Or file=".DS_Store" Or file=".git" Or file="__PAGES__" Or file="__MANPAGES__"
 				
 				Continue
 				
@@ -84,18 +84,19 @@ Function CopyFiles( dir:String )
 #else
 				Continue
 #endif
-				
 			Else If file.Contains( ".buildv" )
-				
+
 				If ExtractDir( dir )<>"modules/" Or Not file.EndsWith( ".buildv"+MX2CC_VERSION ) Continue
-				
+
 			Else If dir.Contains( ".buildv" )
+				
+				If Not src.Contains( "_mx" ) And Not src.EndsWith( "_mx" ) Continue
 				
 				If file.StartsWith( "emscripten_" ) Continue
 				If file.StartsWith( "android_" ) Continue
 				If file.StartsWith( "ios_" ) Continue
-				If file.EndsWith( "_msvc" )  Continue
-				If file.EndsWith( "_x64" ) Continue
+'				If file.Contains( "_msvc" )  Continue
+				If file.Contains( "_x64" ) Continue
 				If file="build" Continue
 				If file="src" Continue
 			
@@ -104,6 +105,8 @@ Function CopyFiles( dir:String )
 			CopyFiles( src )
 		
 		Case FileType.File
+			
+			If file=".gitignore" Continue
 		
 			Local dst:=output+"/"+dir+"/"+file
 			
@@ -137,6 +140,8 @@ Function CopyRelease()
 	Copy( "shapes-scene.mojo3d" )
 	Copy( "sprites-scene.mojo3d" )
 	Copy( "test-scene.mojo3d" )
+	
+	Copy( "xmas-lights.png" )
 	
 #If __TARGET__="windows"
 	Copy( "Monkey2 (Windows).exe" )

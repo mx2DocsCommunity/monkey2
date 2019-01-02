@@ -196,7 +196,7 @@ Struct Color
 	Operator To:geom.Vec4f()
 		Return New Vec4f( r,g,b,a )
 	End
-	
+
 	#rem monkeydoc The Red color component.
 	#end
 	Property R:Float()
@@ -268,7 +268,7 @@ Struct Color
 	Operator-:Color( offset:Float )
 		Return New Color( r-offset,g-offset,b-offset,a-offset )
 	End
-
+	
 	#rem monkeydoc Blends the color with another color and returns the result.
 	#end	
 	Method Blend:Color( color:Color,delta:Float )
@@ -276,10 +276,40 @@ Struct Color
 		Return New Color( r*idelta+color.r*delta,g*idelta+color.g*delta,b*idelta+color.b*delta,a*idelta+color.a*delta )
 	End
 
-	#rem monkeydoc Converts the color to 32 bit ARGB format.
+	#rem monkeydoc Converts the color to 32 bit big endian ARGB format.
+	
+	Big endian ARGB is the same as little endian BGRA.
+	
 	#end	
 	Method ToARGB:UInt()
 		Return UInt(a*255) Shl 24 | UInt(r*255) Shl 16 | UInt(g*255) Shl 8 | UInt(b*255)
+	End
+
+	#rem monkeydoc Converts the color to 32 bit big endian BGRA format.
+
+	Big endian BGRA is the same as little endian ARGB.
+	
+	#end	
+	Method ToBGRA:UInt()
+		Return UInt(b*255) Shl 24 | UInt(g*255) Shl 16 | UInt(r*255) Shl 8 | UInt(a*255)
+	End
+
+	#rem monkeydoc Converts the color to 32 bit big endian RGBA format.
+	
+	Big endian RGBA is the same as little endian ABGR.
+	
+	#end	
+	Method ToRGBA:UInt()
+		Return UInt(r*255) Shl 24 | UInt(g*255) Shl 16 | UInt(b*255) Shl 8 | UInt(a*255)
+	End
+
+	#rem monkeydoc Converts the color to 32 bit big endianABGR format.
+	
+	Big endian ABGR is the same as little endian RGBA.
+	
+	#end	
+	Method ToABGR:UInt()
+		Return UInt(a*255) Shl 24 | UInt(b*255) Shl 16 | UInt(g*255) Shl 8 | UInt(r*255)
 	End
 
 	#rem monkeydoc Converts the color to printable string.
@@ -314,13 +344,55 @@ Struct Color
 		Return New Color( r,g,b,a )
 	End
 	
-	#rem monkeydoc Creates a color from a 32 bit ARGB color.
+	#rem monkeydoc Creates a color from a 32 bit big endian ARGB color.
+
+	Big endian ARGB is the same as little endian BGRA.
+
 	#end
 	Function FromARGB:Color( argb:UInt )
 		Local a:=(argb Shr 24 & $ff)/255.0
 		Local r:=(argb Shr 16 & $ff)/255.0
 		Local g:=(argb Shr 8 & $ff)/255.0
 		Local b:=(argb & $ff)/255.0
+		Return New Color( r,g,b,a )
+	End
+	
+	#rem monkeydoc Creates a color from a 32 bit big endian BGRA color.
+
+	Big endian BGRA is the same as little endian ARGB.
+	
+	#end
+	Function FromBGRA:Color( bgra:UInt )
+		Local b:=(bgra Shr 24 & $ff)/255.0
+		Local g:=(bgra Shr 16 & $ff)/255.0
+		Local r:=(bgra Shr 8 & $ff)/255.0
+		Local a:=(bgra & $ff)/255.0
+		Return New Color( r,g,b,a )
+	End
+	
+	#rem monkeydoc Creates a color from a 32 bit big endian RGBA color.
+
+	Big endian RGBA is the same as little endian ABGR.
+	
+	#end
+	Function FromRGBA:Color( rgba:UInt )
+		Local r:=(rgba Shr 24 & $ff)/255.0
+		Local g:=(rgba Shr 16 & $ff)/255.0
+		Local b:=(rgba Shr 8 & $ff)/255.0
+		Local a:=(rgba & $ff)/255.0
+		Return New Color( r,g,b,a )
+	End
+	
+	#rem monkeydoc Creates a color from a 32 bit big endian ABGR color.
+
+	Big endian ABGR is the same as little endian RGBA.
+	
+	#end
+	Function FromABGR:Color( abgr:UInt )
+		Local a:=(abgr Shr 24 & $ff)/255.0
+		Local b:=(abgr Shr 16 & $ff)/255.0
+		Local g:=(abgr Shr 8 & $ff)/255.0
+		Local r:=(abgr & $ff)/255.0
 		Return New Color( r,g,b,a )
 	End
 	

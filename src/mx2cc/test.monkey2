@@ -1,23 +1,30 @@
 
-Namespace test
-
-#Import "<windows.h>"
-
-Extern
-
-Alias DWORD:UInt
-Alias LPDWORD:DWORD Ptr
-
-Public
-
-Function Test( p:LPDWORD )
+Class C
 	
-	Print p[0]
+	Field x:Int=10
+	
+	Method Test2:String()
+		Return "Test2 - x="+x
+	End
 End
+
+Class C Extension
+	
+	Method Test:String()
+		Return "x="+x
+	End
+End
+
+Function Call( f:String() )
+	
+	Print "f()="+f()
+End
+
 
 Function Main()
 	
-	Local t:DWORD=10
+	Local c:=New C
 	
-	Test( Varptr t )
+	Call( c.Test2 )
+	Call( c.Test )
 End

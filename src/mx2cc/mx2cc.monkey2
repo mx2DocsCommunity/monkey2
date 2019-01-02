@@ -4,6 +4,7 @@ Namespace mx2cc
 #Import "<std>"
 
 #Import "mx2"
+#Import "findmsvc"
 
 #Import "newdocs/docsnode"
 #Import "newdocs/docsbuffer"
@@ -24,19 +25,12 @@ Global StartDir:String
 
 Global profileName:String
 
-'Const TestArgs:="mx2cc makemods monkey"
+Const TestArgs:="mx2cc makemods"
 
-'Const TestArgs:="mx2cc makemods"' -clean mojo"
-'Const TestArgs:="mx2cc makedocs std"
- 
-Const TestArgs:="mx2cc makeapp src/mx2cc/test.monkey2"
+'Const TestArgs:="mx2cc makeapp src/mx2cc/test.monkey2"
 
 Function Main()
 	
-'	Print "YARGH!"
-	
-'	Return
-
 	'Set aside 64M for GC!
 	GCSetTrigger( 64*1024*1024 )
 	
@@ -174,7 +168,7 @@ Function GenInfo:Bool( args:String[] )
 	
 	args=ParseOpts( opts,args )
 	If args.Length<>1 Fail( "Invalid app source file" )
-	
+		
 	Local cd:=CurrentDir()
 	ChangeDir( StartDir )
 	opts.mainSource=RealPath( args[0].Replace( "\","/" ) )
@@ -185,20 +179,18 @@ Function GenInfo:Bool( args:String[] )
 	Print ""
 
 	New BuilderInstance( opts )
+
+	Local gen:=New GeninfoGenerator
 	
 	Builder.Parse()
+	
 	If opts.passes=1
-		Local gen:=New GeninfoGenerator
-		Local jobj:=gen.GenParseInfo( Builder.mainModule.fileDecls[0] )
-		Print jobj.ToJson()
-		Return Builder.errors.Length=0
+		gen.GenSemantInfo()
+'		gen.GenParseInfo()
+	Else
+		If Not Builder.errors.Length Builder.Semant()
+		gen.GenSemantInfo()
 	Endif
-	If Builder.errors.Length Return False
-	
-	Builder.Semant()
-	
-	Local gen:=New GeninfoGenerator
-	gen.GenSemantInfo()
 	
 	Return Builder.errors.Length=0
 End
@@ -435,8 +427,6 @@ Function ParseOpts:String[]( opts:BuildOpts,args:String[] )
 				opts.verbose=-1
 			Case "-verbose"
 				opts.verbose=1
-			Case "-geninfo"
-				opts.geninfo=True
 			Case "-time"
 				opts_time=True
 			Default
@@ -505,7 +495,15 @@ Function ParseOpts:String[]( opts:BuildOpts,args:String[] )
 			Fail( "Unrecognized architecture '"+opts.arch+"'" )
 		Endif
 		
-		If Int( GetEnv( "MX2_USE_MSVC" ) )
+'		Print "MX2_USE_MSVC='"+GetEnv( "MX2_USE_MSVC" )+"'"
+		
+		Local msvc:=GetEnv( "MX2_USE_MSVC" )
+		
+		If msvc=""
+			msvc=FindMSVC() ? "1" Else "0"
+		Endif
+		
+		If Int( msvc )
 			
 			opts.toolchain="msvc"
 			
@@ -540,6 +538,8 @@ Function ParseOpts:String[]( opts:BuildOpts,args:String[] )
 		If Not opts.appType opts.appType="wasm"
 			
 		opts.arch="llvm"
+		
+		opts.threads=False
 		
 	Case "android"
 		

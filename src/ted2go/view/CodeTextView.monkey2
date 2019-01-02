@@ -234,6 +234,143 @@ Class CodeTextView Extends TextView
 		Endif
 	End
 	
+	Method ExpandSelection()
+		
+		' this method tries to intelligent expand
+		' selection under cursor
+		'
+		Local min:=Min( Cursor,Anchor )
+		Local max:=Max( Cursor,Anchor )
+		Local lineStart:=Document.StartOfLine( Document.FindLine( min ) )
+		Local lineEnd:=Document.EndOfLine( Document.FindLine( max ) )
+		
+		Local ch1:=min>lineStart ? Text[min-1] Else -1
+		Local ch2:=max<lineEnd ? Text[max] Else -1
+		
+		Local found:=False
+		
+		If IsIdent( ch1 )
+			min-=1
+			While min>lineStart And IsIdent( Text[min] )
+				min-=1
+			Wend
+			min+=1
+			found=True
+		Endif
+		
+		If IsIdent( ch2 )
+			While max<lineEnd And IsIdent( Text[max] )
+				max+=1
+			Wend
+			found=True
+		Endif
+		
+		If Not found
+			' valid ident parts: .?->[]
+			Local arr:=New Int[]( 
+						Chars.DOT,
+						Chars.QUESTION,
+						Chars.MINUS,
+						Chars.MORE_BRACKET,
+						Chars.OPENED_SQUARE_BRACKET,
+						Chars.CLOSED_SQUARE_BRACKET)
+						
+			If Utils.ArrayContains( arr,ch1 )
+				min-=1
+				Local letters:=False
+				While min>lineStart
+					Local ch:=Text[min]
+					If Utils.ArrayContains( arr,ch ) Or
+							IsIdent( ch )
+						Local let:=IsAlpha( ch ) Or ch=Chars.UNDERLINE
+						If letters And Not let Exit
+						letters=let
+						min-=1
+					Else
+						Exit
+					Endif
+				Wend
+				min+=1
+				found=True
+			Endif
+			
+			If Not found And Utils.ArrayContains( arr,ch2 )
+				Local letters:=False
+				While max<lineEnd
+					Local ch:=Text[max]
+					If Utils.ArrayContains( arr,ch ) Or
+							IsIdent( ch )
+						Local let:=IsAlpha( ch ) Or ch=Chars.UNDERLINE
+						If letters And Not let Exit
+						max+=1
+					Else
+						Exit
+					Endif
+				Wend
+				found=True
+			Endif
+			
+			If Not found And ch1=Chars.COLON
+				min-=2
+				While min>lineStart And IsIdent( Text[min] )
+					min-=1
+				Wend
+				min+=1
+				found=True
+			Endif
+			
+			If Not found And ch2=Chars.COLON
+				max+=1
+				While max<lineEnd And IsIdent( Text[max] )
+					max+=1
+				Wend
+				found=True
+			Endif
+			
+			' scope of (...)
+			If Not found
+				Local pos:=Text.Find( "(",lineStart )
+				If pos>=lineStart And pos<min
+					Local pos2:=Text.Find( ")",max )
+					If pos2>0 And pos2<=lineEnd
+						
+						If min-pos>1 Or pos2-max>1
+							min=pos+1
+							max=pos2
+							found=True
+						Endif
+					Endif
+				Endif
+			Endif
+			
+			' whole line
+			If Not found
+				min=lineStart
+				While min<lineEnd And Text[min]<=Chars.SPACE
+					min+=1
+				Wend
+				max=lineEnd
+				While max>lineStart And Text[max]<=Chars.SPACE
+					max-=1
+				Wend
+				max+=1
+				If min=max 'have no printable chars
+					min=lineStart
+					max=lineEnd
+				Endif
+				found=True
+			Endif
+			
+		Endif
+		
+		SelectText( min,max )
+		
+	End
+	
+	Method ShrinkSelection()
+		' todo
+	End
+	
 	Property SelectedText:String()
 		
 		If Not CanCopy Return ""
@@ -275,9 +412,9 @@ Class CodeTextView Extends TextView
 		Return text.Slice( start,ends )
 	End
 	
-	Method IdentBeforeCursor:String( withDots:Bool=True )
+	Method IdentBeforeCursor:String( withDots:Bool=True,wholeWord:Bool=False )
 		
-		Local info:=GetIndentBeforePos_Mx2( LineTextAtCursor,PosInLineAtCursor,withDots )
+		Local info:=GetIndentBeforePos_Mx2( LineTextAtCursor,PosInLineAtCursor,withDots,wholeWord )
 		Return info.ident
 	End
 	
@@ -709,8 +846,9 @@ Class CodeTextView Extends TextView
 		Select event.Type
 			
 			Case EventType.MouseWheel 'little faster scroll
-		
-				Scroll-=New Vec2i( 0,RenderStyle.Font.Height*event.Wheel.Y*3 )
+				
+				Local delta:=New Vec2i( RenderStyle.Font.Height,-RenderStyle.Font.Height*2 )
+				Scroll+=delta*event.Wheel
 				Return
 			
 			Case EventType.MouseDown 'prevent selection by dragging with right-button
@@ -1282,9 +1420,6 @@ Class IndentationHelper Final
 			
 			Local line:=lines[lineIndex]
 			
-			Local lineLen:=line.Length
-			If lineLen=0 Continue
-			
 			' trim endings of lines
 			Local s:=line.TrimEnd()
 			If s ' don't trim whitespaced lines
@@ -1292,8 +1427,11 @@ Class IndentationHelper Final
 				lines[lineIndex]=line
 			Endif
 			
+			Local lineLen:=line.Length
+			If lineLen=0 Continue
+			
 			Local start:=document.StartOfLine( lineIndex )
-			Local lineStr:="" ' our new content of line 
+			Local lineStr:="" ' our new content of line
 			Local indentStart:=-1,textStart:=0
 			Local replaced:=0
 			
@@ -1317,7 +1455,7 @@ Class IndentationHelper Final
 					Endif
 					
 					' indentation found
-					If Not skip And indentStart<>-1 And k-indentStart>=minIndent
+					If Not skip And indentStart<>-1 And (indentStart=0 Or k-indentStart>=minIndent)
 						
 						replaced+=1
 						
@@ -1352,19 +1490,20 @@ Class IndentationHelper Final
 							
 						Else ' spaces --> tabs
 							
-							indentStr=indentStr.Replace( "~t",tabAsSpacesStr ) ' avoid mixing of tabs and spaces
-							Local size:=indentStr.Length
-							Local cnt:=size/tabSize
-							Local md:=size Mod tabSize
-							indentStr=""
-							If md>1 ' convert 2+ spaces into tab
-								cnt+=1
-							Elseif md>0 ' left 1 space as is at the beginning of indent
-								indentStr+=" "
+							Local spacesCount:=0
+							For Local ch:=Eachin indentStr
+								If ch=Chars.SPACE Then spacesCount+=1
+							Next
+							Local tabsCount:=indentStr.Length-spacesCount
+							Local cnt:=spacesCount/tabSize
+							Local md:=spacesCount Mod tabSize
+							If tabsCount>0
+								tabsCount+=cnt
+							Else
+								tabsCount=cnt+(md ? 1 Else 0)
 							Endif
-							If cnt>0 ' our tabs 'replacement'
-								indentStr+="~t".Dup( cnt )
-							Endif
+							
+							indentStr="~t".Dup( tabsCount )
 							
 						Endif
 						

@@ -26,7 +26,8 @@ Class SpriteBuffer
 		
 		If n*6>_ibuffer.Length
 			Local i0:=_ibuffer.Length/6
-			_ibuffer.Resize( Max( _ibuffer.Length*3/2,n*6 ) )
+			n=Max(n,i0*3/2)
+			_ibuffer.Resize(n*6)
 			Local ip:=Cast<UInt Ptr>( _ibuffer.Lock() )+i0*6
 			For Local i:=i0 Until n
 				ip[0]=i*4
@@ -53,6 +54,13 @@ Class SpriteBuffer
 		_distance=spriteOps[0].distance
 		_i0=0
 		_i=0
+		
+		Local r_bb:=invViewMatrix.m
+		
+		Local r_up:=r_bb
+		r_up.j=New Vec3f(0,1,0)
+		r_up.i=r_up.j.Cross(r_up.k).Normalize()
+		r_up.k=r_up.i.Cross(r_up.j)
 		
 		Repeat
 			
@@ -92,6 +100,8 @@ Class SpriteBuffer
 
 			Local sprite:=spriteOps[spritei].sprite
 			
+			Local rgba:=(sprite.Color*sprite.Alpha).ToABGR()
+			
 			Local material:=sprite.Material
 			
 			If material<>_material
@@ -107,32 +117,36 @@ Class SpriteBuffer
 			spritei+=1
 			
 			'construct vertices...
-			Local r:=invViewMatrix.m
+			Local matrix:AffineMat4f
 			
 			Select sprite.Mode
+			Case SpriteMode.Billboard
+				matrix.m=r_bb.Scale( sprite.Scale )
+				matrix.t=sprite.Position
 			Case SpriteMode.Upright
-				r.j=New Vec3f( 0,1,0 ) ; r.i=r.j.Cross( r.k ).Normalize()
+				matrix.m=r_up.Scale( sprite.Scale )
+				matrix.t=sprite.Position
+			Default	'Fixed
+				matrix=sprite.Matrix
 			End
-			
-			Local matrix:=New AffineMat4f( r.Scale( sprite.Scale ),sprite.Position )
 			
 			Local texrect:=sprite.TextureRect,handle:=sprite.Handle
 			
 			vp[0].position=matrix * New Vec3f( -handle.x,1-handle.y,0 )
 			vp[0].texCoord0=New Vec2f( texrect.min.x,texrect.min.y )
-			vp[0].color=~0
+			vp[0].color=rgba
 			
 			vp[1].position=matrix * New Vec3f( 1-handle.x,1-handle.y,0 )
 			vp[1].texCoord0=New Vec2f( texrect.max.x,texrect.min.y )
-			vp[1].color=~0
+			vp[1].color=rgba
 
 			vp[2].position=matrix * New Vec3f( 1-handle.x,-handle.y,0 )
 			vp[2].texCoord0=New Vec2f( texrect.max.x,texrect.max.y )
-			vp[2].color=~0
+			vp[2].color=rgba
 			
 			vp[3].position=matrix * New Vec3f( -handle.x,-handle.y,0 )
 			vp[3].texCoord0=New Vec2f( texrect.min.x,texrect.max.y )
-			vp[3].color=~0
+			vp[3].color=rgba
 			
 			'bump vertex/index
 			vp+=4

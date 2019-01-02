@@ -10,6 +10,8 @@ Class EditActions
 	Field copy:Action
 	Field paste:Action
 	Field selectAll:Action
+	Field expandSelection:Action
+	Field shrinkSelection:Action
 	Field wordWrap:Action
 	' Edit -- Text
 	Field textDeleteWordForward:Action
@@ -25,14 +27,14 @@ Class EditActions
 	Field uncomment:Action
 	
 	Method New( docs:DocumentManager )
-	
+		
 		_docs=docs
 		
 		undo=New Action( "Undo" )
 		undo.Triggered=OnUndo
 		undo.HotKey=Key.Z
 		undo.HotKeyModifiers=Modifier.Menu|Modifier.Ignore
-
+		
 		redo=New Action( "Redo" )
 		redo.Triggered=OnRedo
 #If __TARGET__="macos"
@@ -47,21 +49,31 @@ Class EditActions
 		cut.Triggered=OnCut
 		cut.HotKey=Key.X
 		cut.HotKeyModifiers=Modifier.Menu|Modifier.Ignore
-
+		
 		copy=New Action( "Copy" )
 		copy.Triggered=OnCopy
 		copy.HotKey=Key.C
 		copy.HotKeyModifiers=Modifier.Menu|Modifier.Ignore
-
+		
 		paste=New Action( "Paste" )
 		paste.Triggered=OnPaste
 		paste.HotKey=Key.V
 		paste.HotKeyModifiers=Modifier.Menu|Modifier.Ignore
-
+		
 		selectAll=New Action( "Select all" )
 		selectAll.Triggered=OnSelectAll
 		selectAll.HotKey=Key.A
 		selectAll.HotKeyModifiers=Modifier.Menu|Modifier.Ignore
+		
+		expandSelection=New Action( "Expand selection" )
+		expandSelection.Triggered=OnExpandSelection
+		expandSelection.HotKey=Key.Up
+		expandSelection.HotKeyModifiers=Modifier.Alt
+		
+		shrinkSelection=New Action( "Shrink selection" )
+		shrinkSelection.Triggered=OnShrinkSelection
+		shrinkSelection.HotKey=Key.Down
+		shrinkSelection.HotKeyModifiers=Modifier.Alt
 		
 		wordWrap=New Action( "Toggle word wrap" )
 		wordWrap.Triggered=OnWordWrap
@@ -240,6 +252,16 @@ Class EditActions
 		Local tv:=Cast<TextView>( App.KeyView )
 		
 		If tv tv.SelectAll()
+	End
+	
+	Method OnExpandSelection()
+		
+		Cast<CodeTextView>( App.KeyView )?.ExpandSelection()
+	End
+	
+	Method OnShrinkSelection()
+		
+		Cast<CodeTextView>( App.KeyView )?.ShrinkSelection()
 	End
 	
 	Method OnWordWrap()

@@ -45,6 +45,31 @@ Class TextUtils Final
 		Return pos
 	End
 	
+	Function Split:String[]( text:String,splitters:Int[] )
+		
+		Local results:=New StringStack
+		Local s:="",prev:=0
+		For Local i:=0 Until text.Length
+			Local chr:=text[i]
+			For Local splt:=Eachin splitters
+				If chr=splt
+					If s<>""
+						results.Add( text.Slice( prev,i ) )
+					Endif
+					prev=i+1
+					s=""
+					Exit
+				Else
+					s+=String.FromChar( chr )
+				Endif
+			Next
+			If i=text.Length-1
+				results.Add( text.Slice( prev,text.Length ) )
+			Endif
+		Next
+		
+		Return results.ToArray()
+	End
 	
 	Private
 	
@@ -62,6 +87,7 @@ Struct Chars
 	Const DOUBLE_QUOTE:="~q"[0] '34
 	Const COMMA:=","[0] '44
 	Const SEMICOLON:=";"[0]
+	Const COLON:=":"[0]
 	Const DOT:="."[0] '46
 	Const EQUALS:="="[0] '61
 	Const LESS_BRACKET:="<"[0] '60
@@ -77,5 +103,8 @@ Struct Chars
 	Const TAB:="~t"[0] '9
 	Const SPACE:=" "[0] '32
 	Const NEW_LINE:="~n"[0] '10
-	
+	Const QUESTION:="?"[0]
+	Const PLUS:="+"[0]
+	Const MINUS:="-"[0]
+	Const UNDERLINE:="_"[0]
 End

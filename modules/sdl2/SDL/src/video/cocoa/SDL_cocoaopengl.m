@@ -327,10 +327,12 @@ Cocoa_GL_GetDrawableSize(_THIS, SDL_Window * window, int * w, int * h)
     NSView *contentView = [windata->nswindow contentView];
     NSRect viewport = [contentView bounds];
 
-    /* This gives us the correct viewport for a Retina-enabled view, only
-     * supported on 10.7+. */
-    if ([contentView respondsToSelector:@selector(convertRectToBacking:)]) {
-        viewport = [contentView convertRectToBacking:viewport];
+    if (window->flags & SDL_WINDOW_ALLOW_HIGHDPI) {
+        /* This gives us the correct viewport for a Retina-enabled view, only
+         * supported on 10.7+. */
+        if ([contentView respondsToSelector:@selector(convertRectToBacking:)]) {
+            viewport = [contentView convertRectToBacking:viewport];
+        }
     }
 
     if (w) {
@@ -389,7 +391,10 @@ Cocoa_GL_SwapWindow(_THIS, SDL_Window * window)
 {
     SDLOpenGLContext* nscontext = (SDLOpenGLContext*)SDL_GL_GetCurrentContext();
     [nscontext flushBuffer];
-    [nscontext updateIfNeeded];
+    
+    // ***** Mark was here! *****
+    // Fix for Mojave, which wasn't rendering until window moved.
+    [nscontext update];//IfNeeded];
 }}
 
 void

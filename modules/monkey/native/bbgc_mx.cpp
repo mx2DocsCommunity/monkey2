@@ -42,6 +42,8 @@ namespace{
 
 namespace bbGC{
 
+	const char *state="IDLE";
+
 	size_t trigger=4*1024*1024;
 	int suspended=1;
 	
@@ -80,7 +82,7 @@ namespace bbGC{
 	
 	void finit(){
 	
-		suspended=INT_MAX;
+		suspended=0x7fffffff;
 		
 		inited=false;
 	}
@@ -90,9 +92,7 @@ namespace bbGC{
 		if( inited ) return;
 		inited=true;
 		
-		printf( "sizeof( std::atomic_char )=%i\n",sizeof( std::atomic_char ) );
-		printf( "std::atomic_char().is_lock_free()=%i\n",std::atomic_char().is_lock_free() );
-		fflush( stdout );
+//		bb_printf( "Initializing threaded GC\n" );
 		
 		markedBit=1;
 		markedList=&markLists[0];
@@ -171,24 +171,18 @@ namespace bbGC{
 	//
 	void suspendThreads(){
 	
-		bbGCThread *thread=threads;
-		
-		for( ;; ){
-		
-			if( thread!=currentThread ){
+		for( bbGCThread *thread=currentThread->succ;thread!=currentThread;thread=thread->succ ){
 
-				int n=(int)SuspendThread( thread->handle );
+			int n=(int)SuspendThread( thread->handle );
 						
-				if( n<0 ){ printf( "SuspendThread failed! n=%i\n",n );fflush( stdout );exit( -1 ); }
-			
-				CONTEXT context={0};//CONTEXT_CONTROL};
+			if( n<0 ){ printf( "SuspendThread failed! n=%i\n",n );fflush( stdout );exit( -1 ); }
+		}
+
+		for( bbGCThread *thread=currentThread->succ;thread!=currentThread;thread=thread->succ ){
+
+			CONTEXT context={0};//CONTEXT_CONTROL};
 						
-				if( !GetThreadContext( thread->handle,&context ) ){ printf( "GetThreadContext failed\n" );fflush( stdout );exit( -1 ); }
-			}
-			
-			thread=thread->succ;
-			
-			if( thread==threads ) break;
+			if( !GetThreadContext( thread->handle,&context ) ){ printf( "GetThreadContext failed\n" );fflush( stdout );exit( -1 ); }
 		}
 	}
 	
@@ -196,31 +190,21 @@ namespace bbGC{
 	//
 	void resumeThreads(){
 	
-		bbGCThread *thread=threads;
-		
-		for( ;; ){
-		
-			if( thread!=currentThread ){
-				
-				ResumeThread( thread->handle );
-			}
+		for( bbGCThread *thread=currentThread->succ;thread!=currentThread;thread=thread->succ ){
 
-			thread=thread->succ;
-			
-			if( thread==threads ) break;
+			ResumeThread( thread->handle );
 		}
 	}
 
 #else
-
-	std::atomic_int resumeCount{0};
-	std::atomic_bool threadSuspended{false};
 	
 	std::mutex suspendMutex;
 	std::condition_variable_any suspendCondvar;
+	std::atomic_int threadsSuspending{0};
 	
 	std::mutex resumeMutex;
 	std::condition_variable_any resumeCondvar;
+	std::atomic_int resumeCount{0};
 	
 	void suspendSigHandler( int sig ){
 	
@@ -228,7 +212,7 @@ namespace bbGC{
 	
 		//signal suspended
 		suspendMutex.lock();
-		threadSuspended=true;
+		threadsSuspending-=1;
 		suspendMutex.unlock();
 		suspendCondvar.notify_one();
 		
@@ -242,26 +226,20 @@ namespace bbGC{
 	//
 	void suspendThreads(){
 	
-		bbGCThread *thread=threads;
+		threadsSuspending=0;
+	
+		for( bbGCThread *thread=currentThread->succ;thread!=currentThread;thread=thread->succ ){
+		
+			++threadsSuspending;
+		}
+		
+		for( bbGCThread *thread=currentThread->succ;thread!=currentThread;thread=thread->succ ){
+		
+			pthread_kill( (pthread_t)thread->handle,SIGUSR2 );
+		}
 		
 		suspendMutex.lock();
-		for( ;; ){
-		
-			if( thread!=currentThread ){
-				
-				threadSuspended=false;
-				suspendMutex.unlock();
-				
-				pthread_kill( (pthread_t)thread->handle,SIGUSR2 );
-
-				suspendMutex.lock();
-				while( !threadSuspended ) suspendCondvar.wait( suspendMutex );
-			}
-			
-			thread=thread->succ;
-			
-			if( thread==threads ) break;
-		}
+		while( threadsSuspending ) suspendCondvar.wait( suspendMutex );
 		suspendMutex.unlock();
 	}
 	
@@ -511,14 +489,22 @@ namespace bbGC{
 
 			if( allocedBytes+size>=trigger ){
 				
+				state="SWEEPING";
+				
 				sweep();
 				
 			}else{
 			
+				state="MARKING";
+			
 				markQueued( double( allocedBytes+size ) / double( trigger ) * double( unmarkedBytes + trigger ) );
 			}
 			
+			state="RECLAIMING";			
+			
 			reclaim( size );
+			
+			state="IDLE";
 			
 			unlockCollector();
 		}

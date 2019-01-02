@@ -13,14 +13,19 @@ Class ScrollViewTabs Extends ScrollView
 		' catch horizontal scrolling
 		Select event.Type
 		Case EventType.MouseWheel
-		
-			Local scroll:=Scroll
-		
-			Local delta:=New Vec2i( 4*ContentView.RenderStyle.Font.Height*event.Wheel.Y,0 )
+			
+			Local wx:=event.Wheel.x
+			Local wy:=event.Wheel.y
+			Local wheelDelta:=0
+			If Abs( wx )>Abs( wy )
+				wheelDelta=-wx
+			Else
+				wheelDelta=wy
+			Endif
+			Local delta:=New Vec2i( 4*ContentView.RenderStyle.Font.Height*wheelDelta,0 )
 		
 			Scroll-=delta
 		
-			'If scroll<>Scroll event.Eat()
 			event.Eat()
 			Return
 		End
@@ -58,7 +63,7 @@ Class TabViewExt Extends DockingView Implements IDraggableHolder
 	Field CloseClicked:Void( index:Int )
 
 	#rem monkeydoc Invoked when a tab is dragged.
-	#end	
+	#end
 	Field Dragged:Void()
 
 	#rem monkeydoc Creates a new tab view.
@@ -127,6 +132,10 @@ Class TabViewExt Extends DockingView Implements IDraggableHolder
 		Local tab:=Cast<TabButtonExt>( item )
 		RemoveTab( tab )
 		tab.Selected=True
+		
+		' stop dragging mode
+		ViewUtils.SendMouseEvent( tab,EventType.MouseUp )
+		
 		Return tab
 	End
 	
@@ -279,44 +288,44 @@ Class TabViewExt Extends DockingView Implements IDraggableHolder
 	End
 	
 	Method AddTab( tab:TabButtonExt,makeCurrent:Bool=False,addAtBegin:Bool=False )
-	
+		
 		Assert( TabIndex( tab.View )=-1,"View has already been added to TabView" )
 		
 		TabButtonExt_Bridge.SetTabParent( tab,Self )
-	
-		tab.Clicked=Lambda()
 		
+		tab.Clicked=Lambda()
+			
 			MakeCurrent( tab,True )
-
+			
 			Clicked()
 		End
 		
 		tab.RightClicked=Lambda()
-		
+			
 			MakeCurrent( tab,True )
 			'If tab.Undockable Then UndockWindow.NewUndock( tab )
 			RightClicked()
 		End
 		
 		tab.DoubleClicked=Lambda()
-		
+			
 			MakeCurrent( tab,True )
 			
 			DoubleClicked()
 		End
 		
 		tab.Dragged=Lambda( v:Vec2i )
-		
+			
 			If Not (_flags & TabViewFlags.DraggableTabs) Return
-
+			
 			Local mx:=_tabBar.MouseLocation.x
 			If mx<0 Return
 			
 			Local w:=tab.Bounds.Width
-
+			
 			Local x:=0,i:=_tabs.Length
 			For Local j:=0 Until i
-
+				
 				If mx<x+w
 					i=j
 					Exit
@@ -330,7 +339,7 @@ Class TabViewExt Extends DockingView Implements IDraggableHolder
 			
 			Local i2:=_tabs.FindIndex( tab )
 			If i=i2 Return
-
+			
 			If i>i2 i-=1
 			
 			_tabs.Erase( i2 )
@@ -340,7 +349,7 @@ Class TabViewExt Extends DockingView Implements IDraggableHolder
 			For Local view:=Eachin _tabs
 				_tabBar.AddView( view )
 			Next
-
+			
 			RequestRender()
 			
 			Dragged()

@@ -30,9 +30,9 @@ template<class R,class...A> struct bbFunction<R(A...)>{
 	struct Rep{
 		
 #ifdef BB_THREADS
-		std::atomic_int refs;
+		std::atomic_int refs{0};
 #else
-		int refs;
+		int refs{0};
 #endif
 
 		virtual ~Rep(){
@@ -116,6 +116,36 @@ template<class R,class...A> struct bbFunction<R(A...)>{
 
 		virtual int compare( Rep *rhs ){
 			MethodRep *t=dynamic_cast<MethodRep*>( rhs );
+			if( t && c==t->c && p==t->p ) return 0;
+			return Rep::compare( rhs );
+		}
+		
+		virtual void gcMark(){
+			bbGCMark( c );
+		}
+		
+	};
+	
+	template<class C> struct ExtMethodRep : public Rep{
+	
+		typedef R(*T)(C*,A...);
+		C *c;
+		T p;
+		
+		ExtMethodRep( C *c,T p ):c(c),p(p){
+		}
+		
+		virtual R invoke( A...a ){
+			return (*p)( c,a... );
+		}
+		
+		virtual bool equals( Rep *rhs ){
+			ExtMethodRep *t=dynamic_cast<ExtMethodRep*>( rhs );
+			return t && c==t->c && p==t->p;
+		}
+
+		virtual int compare( Rep *rhs ){
+			ExtMethodRep *t=dynamic_cast<ExtMethodRep*>( rhs );
 			if( t && c==t->c && p==t->p ) return 0;
 			return Rep::compare( rhs );
 		}
@@ -229,6 +259,10 @@ template<class R,class...A> struct bbFunction<R(A...)>{
 		retain();
 	}
 	
+	template<class C> bbFunction( C *c,typename ExtMethodRep<C>::T p ):_rep( new ExtMethodRep<C>(c,p) ){
+		retain();
+	}
+	
 	bbFunction( F p ):_rep( new FunctionRep( p ) ){
 		retain();
 	}
@@ -236,14 +270,6 @@ template<class R,class...A> struct bbFunction<R(A...)>{
 	~bbFunction(){
 		release();
 	}
-	
-	/*
-	void discard(){
-		if( _rep==&_nullRep ) return;
-		delete _rep;
-		_rep=&_nullRep;
-	}
-	*/
 	
 #ifdef BB_THREADS
 	bbFunction &operator=( const bbFunction &p ){
@@ -349,6 +375,14 @@ template<class C,class R,class...A> bbFunction<R(A...)> bbMethod( const bbGCVar<
 	return bbFunction<R(A...)>( c.get(),p );
 }
 
+template<class C,class R,class...A> bbFunction<R(A...)> bbExtMethod( C *c,R(*p)(C*,A...) ){
+	return bbFunction<R(A...)>( c,p );
+}
+
+template<class C,class R,class...A> bbFunction<R(A...)> bbExtMethod( const bbGCVar<C> &c,R(*p)(C*,A...) ){
+	return bbFunction<R(A...)>( c.get(),p );
+}
+
 template<class R,class...A> bbFunction<R(A...)> bbMakefunc( R(*p)(A...) ){
 	return bbFunction<R(A...)>( p );
 }
@@ -357,15 +391,19 @@ template<class R,class...A> bbFunction<R(A...)> bbMakefunc( R(*p)(A...) ){
 template<class R,class...A> void bbGCMark( const bbFunction<R(A...)> &t ){
 	t._rep.load()->gcMark();
 }
+
+template<class R,class...A> int bbCompare( const bbFunction<R(A...)> &x,const bbFunction<R(A...)> &y ){
+	return x._rep.load()->compare( y._rep.load() );
+}
 #else
 template<class R,class...A> void bbGCMark( const bbFunction<R(A...)> &t ){
 	t._rep->gcMark();
 }
-#endif
 
 template<class R,class...A> int bbCompare( const bbFunction<R(A...)> &x,const bbFunction<R(A...)> &y ){
 	return x._rep->compare( y._rep );
 }
+#endif
 
 template<class R,class...A> bbString bbDBType( bbFunction<R(A...)> *p ){
 	return bbDBType<R>()+"()";
